@@ -23,7 +23,7 @@ syntax = "proto3";
 
 package yourapp.v1;
 
-import "buf.build/cadenya-agents/mcp-grpc-gateway"
+import "grpcmcpgateway/v1/annotations.proto";
 
 service Service {
   rpc GetRecentObjectives(RecentObjectivesRequest) returns (ObjectiveObjectivesResponse) {

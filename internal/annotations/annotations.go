@@ -15,9 +15,52 @@ var toolExtensionNames = []protoreflect.FullName{
 	"grpcmcpgateway.v1.tool",
 }
 
+var serverExtensionNames = []protoreflect.FullName{
+	"grpcmcpgateway.v1.server",
+}
+
 type ToolMetadata struct {
 	Name        string
 	Description string
+}
+
+type ServerMetadata struct {
+	Name         string
+	Title        string
+	Version      string
+	Instructions string
+	WebsiteURL   string
+}
+
+func ForService(service protoreflect.ServiceDescriptor) ServerMetadata {
+	meta := serverFallback(service)
+	if service == nil || service.Options() == nil {
+		return meta
+	}
+	options := service.Options().(*descriptorpb.ServiceOptions)
+
+	if meta, ok := fromRegisteredServerExtension(meta, options); ok {
+		return meta
+	}
+
+	ext := findExtension(service.ParentFile(), serverExtensionNames)
+	if ext == nil {
+		return meta
+	}
+	extType := dynamicpb.NewExtensionType(ext)
+	if !proto.HasExtension(options, extType) {
+		msg := dynamicpb.NewMessage(ext.Message())
+		if !unmarshalUnknownExtension(options.ProtoReflect().GetUnknown(), ext, msg) {
+			return meta
+		}
+		return applyServerMessage(meta, msg)
+	}
+	value := proto.GetExtension(options, extType)
+	protoMsg, ok := value.(proto.Message)
+	if !ok || protoMsg == nil {
+		return meta
+	}
+	return applyServerMessage(meta, protoMsg.ProtoReflect())
 }
 
 func ForMethod(method protoreflect.MethodDescriptor) ToolMetadata {
@@ -31,7 +74,7 @@ func ForMethod(method protoreflect.MethodDescriptor) ToolMetadata {
 		return meta
 	}
 
-	ext := findToolExtension(method.ParentFile())
+	ext := findExtension(method.ParentFile(), toolExtensionNames)
 	if ext == nil {
 		return meta
 	}
@@ -55,6 +98,22 @@ func ForMethod(method protoreflect.MethodDescriptor) ToolMetadata {
 	}
 
 	return applyToolMessage(meta, msg)
+}
+
+func fromRegisteredServerExtension(meta ServerMetadata, options *descriptorpb.ServiceOptions) (ServerMetadata, bool) {
+	for _, name := range serverExtensionNames {
+		extType, err := protoregistry.GlobalTypes.FindExtensionByName(name)
+		if err != nil || !proto.HasExtension(options, extType) {
+			continue
+		}
+		value := proto.GetExtension(options, extType)
+		protoMsg, ok := value.(proto.Message)
+		if !ok || protoMsg == nil {
+			continue
+		}
+		return applyServerMessage(meta, protoMsg.ProtoReflect()), true
+	}
+	return meta, false
 }
 
 func fromRegisteredExtension(meta ToolMetadata, options *descriptorpb.MethodOptions) (ToolMetadata, bool) {
@@ -84,6 +143,26 @@ func applyToolMessage(meta ToolMetadata, msg protoreflect.Message) ToolMetadata 
 	return meta
 }
 
+func applyServerMessage(meta ServerMetadata, msg protoreflect.Message) ServerMetadata {
+	fields := msg.Descriptor().Fields()
+	if name := stringField(msg, fields.ByName("name")); name != "" {
+		meta.Name = name
+	}
+	if title := stringField(msg, fields.ByName("title")); title != "" {
+		meta.Title = title
+	}
+	if version := stringField(msg, fields.ByName("version")); version != "" {
+		meta.Version = version
+	}
+	if instructions := stringField(msg, fields.ByName("instructions")); instructions != "" {
+		meta.Instructions = instructions
+	}
+	if websiteURL := stringField(msg, fields.ByName("website_url")); websiteURL != "" {
+		meta.WebsiteURL = websiteURL
+	}
+	return meta
+}
+
 func unmarshalUnknownExtension(raw protoreflect.RawFields, ext protoreflect.ExtensionDescriptor, msg *dynamicpb.Message) bool {
 	for len(raw) > 0 {
 		number, typ, tagLen := protowire.ConsumeTag(raw)
@@ -107,6 +186,16 @@ func unmarshalUnknownExtension(raw protoreflect.RawFields, ext protoreflect.Exte
 	return false
 }
 
+func serverFallback(service protoreflect.ServiceDescriptor) ServerMetadata {
+	if service == nil {
+		return ServerMetadata{}
+	}
+	return ServerMetadata{
+		Name:    string(service.Name()),
+		Version: "dev",
+	}
+}
+
 func fallback(method protoreflect.MethodDescriptor) ToolMetadata {
 	if method == nil {
 		return ToolMetadata{}
@@ -124,12 +213,12 @@ func stringField(msg protoreflect.Message, field protoreflect.FieldDescriptor) s
 	return msg.Get(field).String()
 }
 
-func findToolExtension(file protoreflect.FileDescriptor) protoreflect.ExtensionDescriptor {
+func findExtension(file protoreflect.FileDescriptor, names []protoreflect.FullName) protoreflect.ExtensionDescriptor {
 	seen := map[string]bool{}
-	return findToolExtensionInFile(file, seen)
+	return findExtensionInFile(file, names, seen)
 }
 
-func findToolExtensionInFile(file protoreflect.FileDescriptor, seen map[string]bool) protoreflect.ExtensionDescriptor {
+func findExtensionInFile(file protoreflect.FileDescriptor, names []protoreflect.FullName, seen map[string]bool) protoreflect.ExtensionDescriptor {
 	if file == nil || seen[file.Path()] {
 		return nil
 	}
@@ -138,7 +227,7 @@ func findToolExtensionInFile(file protoreflect.FileDescriptor, seen map[string]b
 	extensions := file.Extensions()
 	for i := 0; i < extensions.Len(); i++ {
 		ext := extensions.Get(i)
-		for _, name := range toolExtensionNames {
+		for _, name := range names {
 			if ext.FullName() == name {
 				return ext
 			}
@@ -147,7 +236,7 @@ func findToolExtensionInFile(file protoreflect.FileDescriptor, seen map[string]b
 
 	imports := file.Imports()
 	for i := 0; i < imports.Len(); i++ {
-		if ext := findToolExtensionInFile(imports.Get(i).FileDescriptor, seen); ext != nil {
+		if ext := findExtensionInFile(imports.Get(i).FileDescriptor, names, seen); ext != nil {
 			return ext
 		}
 	}

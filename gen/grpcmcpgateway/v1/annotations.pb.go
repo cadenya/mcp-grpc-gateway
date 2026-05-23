@@ -22,6 +22,150 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type Server struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Title         string                 `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
+	Version       string                 `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
+	Instructions  string                 `protobuf:"bytes,4,opt,name=instructions,proto3" json:"instructions,omitempty"`
+	WebsiteUrl    string                 `protobuf:"bytes,5,opt,name=website_url,json=websiteUrl,proto3" json:"website_url,omitempty"`
+	Icons         []*Icon                `protobuf:"bytes,6,rep,name=icons,proto3" json:"icons,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Server) Reset() {
+	*x = Server{}
+	mi := &file_grpcmcpgateway_v1_annotations_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Server) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Server) ProtoMessage() {}
+
+func (x *Server) ProtoReflect() protoreflect.Message {
+	mi := &file_grpcmcpgateway_v1_annotations_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Server.ProtoReflect.Descriptor instead.
+func (*Server) Descriptor() ([]byte, []int) {
+	return file_grpcmcpgateway_v1_annotations_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *Server) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *Server) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *Server) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *Server) GetInstructions() string {
+	if x != nil {
+		return x.Instructions
+	}
+	return ""
+}
+
+func (x *Server) GetWebsiteUrl() string {
+	if x != nil {
+		return x.WebsiteUrl
+	}
+	return ""
+}
+
+func (x *Server) GetIcons() []*Icon {
+	if x != nil {
+		return x.Icons
+	}
+	return nil
+}
+
+type Icon struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Src           string                 `protobuf:"bytes,1,opt,name=src,proto3" json:"src,omitempty"`
+	MimeType      string                 `protobuf:"bytes,2,opt,name=mime_type,json=mimeType,proto3" json:"mime_type,omitempty"`
+	Sizes         []string               `protobuf:"bytes,3,rep,name=sizes,proto3" json:"sizes,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Icon) Reset() {
+	*x = Icon{}
+	mi := &file_grpcmcpgateway_v1_annotations_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Icon) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Icon) ProtoMessage() {}
+
+func (x *Icon) ProtoReflect() protoreflect.Message {
+	mi := &file_grpcmcpgateway_v1_annotations_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Icon.ProtoReflect.Descriptor instead.
+func (*Icon) Descriptor() ([]byte, []int) {
+	return file_grpcmcpgateway_v1_annotations_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *Icon) GetSrc() string {
+	if x != nil {
+		return x.Src
+	}
+	return ""
+}
+
+func (x *Icon) GetMimeType() string {
+	if x != nil {
+		return x.MimeType
+	}
+	return ""
+}
+
+func (x *Icon) GetSizes() []string {
+	if x != nil {
+		return x.Sizes
+	}
+	return nil
+}
+
 type Tool struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
@@ -32,7 +176,7 @@ type Tool struct {
 
 func (x *Tool) Reset() {
 	*x = Tool{}
-	mi := &file_grpcmcpgateway_v1_annotations_proto_msgTypes[0]
+	mi := &file_grpcmcpgateway_v1_annotations_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -44,7 +188,7 @@ func (x *Tool) String() string {
 func (*Tool) ProtoMessage() {}
 
 func (x *Tool) ProtoReflect() protoreflect.Message {
-	mi := &file_grpcmcpgateway_v1_annotations_proto_msgTypes[0]
+	mi := &file_grpcmcpgateway_v1_annotations_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -57,7 +201,7 @@ func (x *Tool) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Tool.ProtoReflect.Descriptor instead.
 func (*Tool) Descriptor() ([]byte, []int) {
-	return file_grpcmcpgateway_v1_annotations_proto_rawDescGZIP(), []int{0}
+	return file_grpcmcpgateway_v1_annotations_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *Tool) GetName() string {
@@ -76,30 +220,57 @@ func (x *Tool) GetDescription() string {
 
 var file_grpcmcpgateway_v1_annotations_proto_extTypes = []protoimpl.ExtensionInfo{
 	{
+		ExtendedType:  (*descriptorpb.ServiceOptions)(nil),
+		ExtensionType: (*Server)(nil),
+		Field:         51000,
+		Name:          "grpcmcpgateway.v1.server",
+		Tag:           "bytes,51000,opt,name=server",
+		Filename:      "grpcmcpgateway/v1/annotations.proto",
+	},
+	{
 		ExtendedType:  (*descriptorpb.MethodOptions)(nil),
 		ExtensionType: (*Tool)(nil),
-		Field:         51000,
+		Field:         51001,
 		Name:          "grpcmcpgateway.v1.tool",
-		Tag:           "bytes,51000,opt,name=tool",
+		Tag:           "bytes,51001,opt,name=tool",
 		Filename:      "grpcmcpgateway/v1/annotations.proto",
 	},
 }
 
+// Extension fields to descriptorpb.ServiceOptions.
+var (
+	// optional grpcmcpgateway.v1.Server server = 51000;
+	E_Server = &file_grpcmcpgateway_v1_annotations_proto_extTypes[0]
+)
+
 // Extension fields to descriptorpb.MethodOptions.
 var (
-	// optional grpcmcpgateway.v1.Tool tool = 51000;
-	E_Tool = &file_grpcmcpgateway_v1_annotations_proto_extTypes[0]
+	// optional grpcmcpgateway.v1.Tool tool = 51001;
+	E_Tool = &file_grpcmcpgateway_v1_annotations_proto_extTypes[1]
 )
 
 var File_grpcmcpgateway_v1_annotations_proto protoreflect.FileDescriptor
 
 const file_grpcmcpgateway_v1_annotations_proto_rawDesc = "" +
 	"\n" +
-	"#grpcmcpgateway/v1/annotations.proto\x12\x11grpcmcpgateway.v1\x1a google/protobuf/descriptor.proto\"<\n" +
+	"#grpcmcpgateway/v1/annotations.proto\x12\x11grpcmcpgateway.v1\x1a google/protobuf/descriptor.proto\"\xc0\x01\n" +
+	"\x06Server\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
+	"\x05title\x18\x02 \x01(\tR\x05title\x12\x18\n" +
+	"\aversion\x18\x03 \x01(\tR\aversion\x12\"\n" +
+	"\finstructions\x18\x04 \x01(\tR\finstructions\x12\x1f\n" +
+	"\vwebsite_url\x18\x05 \x01(\tR\n" +
+	"websiteUrl\x12-\n" +
+	"\x05icons\x18\x06 \x03(\v2\x17.grpcmcpgateway.v1.IconR\x05icons\"K\n" +
+	"\x04Icon\x12\x10\n" +
+	"\x03src\x18\x01 \x01(\tR\x03src\x12\x1b\n" +
+	"\tmime_type\x18\x02 \x01(\tR\bmimeType\x12\x14\n" +
+	"\x05sizes\x18\x03 \x03(\tR\x05sizes\"<\n" +
 	"\x04Tool\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12 \n" +
-	"\vdescription\x18\x02 \x01(\tR\vdescription:M\n" +
-	"\x04tool\x12\x1e.google.protobuf.MethodOptions\x18\xb8\x8e\x03 \x01(\v2\x17.grpcmcpgateway.v1.ToolR\x04toolBEZCcadenya.com/mcp-grpc-gateway/gen/grpcmcpgateway/v1;grpcmcpgatewayv1b\x06proto3"
+	"\vdescription\x18\x02 \x01(\tR\vdescription:T\n" +
+	"\x06server\x12\x1f.google.protobuf.ServiceOptions\x18\xb8\x8e\x03 \x01(\v2\x19.grpcmcpgateway.v1.ServerR\x06server:M\n" +
+	"\x04tool\x12\x1e.google.protobuf.MethodOptions\x18\xb9\x8e\x03 \x01(\v2\x17.grpcmcpgateway.v1.ToolR\x04toolBEZCcadenya.com/mcp-grpc-gateway/gen/grpcmcpgateway/v1;grpcmcpgatewayv1b\x06proto3"
 
 var (
 	file_grpcmcpgateway_v1_annotations_proto_rawDescOnce sync.Once
@@ -113,19 +284,25 @@ func file_grpcmcpgateway_v1_annotations_proto_rawDescGZIP() []byte {
 	return file_grpcmcpgateway_v1_annotations_proto_rawDescData
 }
 
-var file_grpcmcpgateway_v1_annotations_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_grpcmcpgateway_v1_annotations_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_grpcmcpgateway_v1_annotations_proto_goTypes = []any{
-	(*Tool)(nil),                       // 0: grpcmcpgateway.v1.Tool
-	(*descriptorpb.MethodOptions)(nil), // 1: google.protobuf.MethodOptions
+	(*Server)(nil),                      // 0: grpcmcpgateway.v1.Server
+	(*Icon)(nil),                        // 1: grpcmcpgateway.v1.Icon
+	(*Tool)(nil),                        // 2: grpcmcpgateway.v1.Tool
+	(*descriptorpb.ServiceOptions)(nil), // 3: google.protobuf.ServiceOptions
+	(*descriptorpb.MethodOptions)(nil),  // 4: google.protobuf.MethodOptions
 }
 var file_grpcmcpgateway_v1_annotations_proto_depIdxs = []int32{
-	1, // 0: grpcmcpgateway.v1.tool:extendee -> google.protobuf.MethodOptions
-	0, // 1: grpcmcpgateway.v1.tool:type_name -> grpcmcpgateway.v1.Tool
-	2, // [2:2] is the sub-list for method output_type
-	2, // [2:2] is the sub-list for method input_type
-	1, // [1:2] is the sub-list for extension type_name
-	0, // [0:1] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	1, // 0: grpcmcpgateway.v1.Server.icons:type_name -> grpcmcpgateway.v1.Icon
+	3, // 1: grpcmcpgateway.v1.server:extendee -> google.protobuf.ServiceOptions
+	4, // 2: grpcmcpgateway.v1.tool:extendee -> google.protobuf.MethodOptions
+	0, // 3: grpcmcpgateway.v1.server:type_name -> grpcmcpgateway.v1.Server
+	2, // 4: grpcmcpgateway.v1.tool:type_name -> grpcmcpgateway.v1.Tool
+	5, // [5:5] is the sub-list for method output_type
+	5, // [5:5] is the sub-list for method input_type
+	3, // [3:5] is the sub-list for extension type_name
+	1, // [1:3] is the sub-list for extension extendee
+	0, // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_grpcmcpgateway_v1_annotations_proto_init() }
@@ -139,8 +316,8 @@ func file_grpcmcpgateway_v1_annotations_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_grpcmcpgateway_v1_annotations_proto_rawDesc), len(file_grpcmcpgateway_v1_annotations_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   1,
-			NumExtensions: 1,
+			NumMessages:   3,
+			NumExtensions: 2,
 			NumServices:   0,
 		},
 		GoTypes:           file_grpcmcpgateway_v1_annotations_proto_goTypes,

@@ -13,6 +13,18 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
+func NewServer(service protoreflect.ServiceDescriptor) *mcp.Server {
+	meta := annotations.ForService(service)
+	return mcp.NewServer(&mcp.Implementation{
+		Name:       meta.Name,
+		Title:      meta.Title,
+		Version:    meta.Version,
+		WebsiteURL: meta.WebsiteURL,
+	}, &mcp.ServerOptions{
+		Instructions: meta.Instructions,
+	})
+}
+
 func RegisterTools(server *mcp.Server, conn grpc.ClientConnInterface, service protoreflect.ServiceDescriptor) error {
 	if server == nil {
 		return fmt.Errorf("mcp server is nil")

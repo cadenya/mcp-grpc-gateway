@@ -101,6 +101,18 @@ func (s *GatewaySuite) TestToolCallInvokesGRPCAndReturnsStructuredContent() {
 	s.Equal("/test.v1.EchoService/Echo", s.conn.calledMethod)
 }
 
+func (s *GatewaySuite) TestNewServerUsesServiceAnnotationForImplementationFields() {
+	server := gateway.NewServer(s.service)
+	s.Require().NoError(gateway.RegisterTools(server, s.conn, s.service))
+	session := s.connect(server)
+	defer session.Close()
+
+	init := session.InitializeResult()
+	s.Require().NotNil(init)
+	s.Equal("EchoService", init.ServerInfo.Name)
+	s.Equal("dev", init.ServerInfo.Version)
+}
+
 func (s *GatewaySuite) connect(server *mcp.Server) *mcp.ClientSession {
 	ctx := context.Background()
 	t1, t2 := mcp.NewInMemoryTransports()

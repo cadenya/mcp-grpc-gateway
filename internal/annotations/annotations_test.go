@@ -40,7 +40,8 @@ func (s *MetadataSuite) SetupSuite() {
 			{Name: ptr("Response")},
 		},
 		Service: []*descriptorpb.ServiceDescriptorProto{{
-			Name: ptr("Service"),
+			Name:    ptr("Service"),
+			Options: &descriptorpb.ServiceOptions{},
 			Method: []*descriptorpb.MethodDescriptorProto{
 				{
 					Name:       ptr("Annotated"),
@@ -69,24 +70,60 @@ func (s *MetadataSuite) SetupSuite() {
 		Dependency: []string{
 			"google/protobuf/descriptor.proto",
 		},
-		MessageType: []*descriptorpb.DescriptorProto{{
-			Name: ptr("Tool"),
-			Field: []*descriptorpb.FieldDescriptorProto{
-				{Name: ptr("name"), JsonName: ptr("name"), Number: ptr[int32](1), Label: &optional, Type: &typeString},
-				{Name: ptr("description"), JsonName: ptr("description"), Number: ptr[int32](2), Label: &optional, Type: &typeString},
+		MessageType: []*descriptorpb.DescriptorProto{
+			{
+				Name: ptr("Server"),
+				Field: []*descriptorpb.FieldDescriptorProto{
+					{Name: ptr("name"), JsonName: ptr("name"), Number: ptr[int32](1), Label: &optional, Type: &typeString},
+					{Name: ptr("title"), JsonName: ptr("title"), Number: ptr[int32](2), Label: &optional, Type: &typeString},
+					{Name: ptr("version"), JsonName: ptr("version"), Number: ptr[int32](3), Label: &optional, Type: &typeString},
+					{Name: ptr("instructions"), JsonName: ptr("instructions"), Number: ptr[int32](4), Label: &optional, Type: &typeString},
+					{Name: ptr("website_url"), JsonName: ptr("websiteUrl"), Number: ptr[int32](5), Label: &optional, Type: &typeString},
+				},
 			},
-		}},
-		Extension: []*descriptorpb.FieldDescriptorProto{{
-			Name:     ptr("tool"),
-			Number:   ptr[int32](51000),
-			Label:    &optional,
-			Type:     &typeMessage,
-			TypeName: ptr(".grpcmcpgateway.v1.Tool"),
-			Extendee: ptr(".google.protobuf.MethodOptions"),
-			JsonName: ptr("tool"),
-		}},
+			{
+				Name: ptr("Tool"),
+				Field: []*descriptorpb.FieldDescriptorProto{
+					{Name: ptr("name"), JsonName: ptr("name"), Number: ptr[int32](1), Label: &optional, Type: &typeString},
+					{Name: ptr("description"), JsonName: ptr("description"), Number: ptr[int32](2), Label: &optional, Type: &typeString},
+				},
+			},
+		},
+		Extension: []*descriptorpb.FieldDescriptorProto{
+			{
+				Name:     ptr("server"),
+				Number:   ptr[int32](51000),
+				Label:    &optional,
+				Type:     &typeMessage,
+				TypeName: ptr(".grpcmcpgateway.v1.Server"),
+				Extendee: ptr(".google.protobuf.ServiceOptions"),
+				JsonName: ptr("server"),
+			},
+			{
+				Name:     ptr("tool"),
+				Number:   ptr[int32](51001),
+				Label:    &optional,
+				Type:     &typeMessage,
+				TypeName: ptr(".grpcmcpgateway.v1.Tool"),
+				Extendee: ptr(".google.protobuf.MethodOptions"),
+				JsonName: ptr("tool"),
+			},
+		},
 	}, baseFiles)
 	s.Require().NoError(err)
+
+	serverExt := toolFile.Extensions().ByName("server")
+	server := dynamicpb.NewMessage(serverExt.Message())
+	server.Set(serverExt.Message().Fields().ByName("name"), protoreflect.ValueOfString("objectives"))
+	server.Set(serverExt.Message().Fields().ByName("title"), protoreflect.ValueOfString("Objectives"))
+	server.Set(serverExt.Message().Fields().ByName("version"), protoreflect.ValueOfString("1.2.3"))
+	server.Set(serverExt.Message().Fields().ByName("instructions"), protoreflect.ValueOfString("Use these tools to inspect objectives."))
+	server.Set(serverExt.Message().Fields().ByName("website_url"), protoreflect.ValueOfString("https://example.com/objectives"))
+	serverBytes, err := proto.Marshal(server)
+	s.Require().NoError(err)
+	serverUnknown := protowire.AppendTag(nil, protowire.Number(serverExt.Number()), protowire.BytesType)
+	serverUnknown = protowire.AppendBytes(serverUnknown, serverBytes)
+	fdProto.Service[0].Options.ProtoReflect().SetUnknown(serverUnknown)
 
 	ext := toolFile.Extensions().ByName("tool")
 	tool := dynamicpb.NewMessage(ext.Message())
@@ -125,6 +162,18 @@ func (s *MetadataSuite) TestFallsBackToRPCNameWhenAnnotationIsAbsent() {
 
 	s.Equal("Plain", got.Name)
 	s.Equal("Calls test.v1.Service/Plain", got.Description)
+}
+
+func (s *MetadataSuite) TestReadsServerAnnotationWhenPresent() {
+	service := s.file.Services().ByName("Service")
+
+	got := annotations.ForService(service)
+
+	s.Equal("objectives", got.Name)
+	s.Equal("Objectives", got.Title)
+	s.Equal("1.2.3", got.Version)
+	s.Equal("Use these tools to inspect objectives.", got.Instructions)
+	s.Equal("https://example.com/objectives", got.WebsiteURL)
 }
 
 func ptr[T any](v T) *T {

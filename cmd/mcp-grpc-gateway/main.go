@@ -107,7 +107,7 @@ func run(ctx context.Context, cfg config) error {
 		return err
 	}
 
-	server := mcp.NewServer(&mcp.Implementation{Name: "mcp-grpc-gateway", Version: "dev"}, nil)
+	server := gateway.NewServer(service)
 	if err := gateway.RegisterTools(server, conn, service); err != nil {
 		return err
 	}

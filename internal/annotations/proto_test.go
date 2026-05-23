@@ -31,12 +31,22 @@ func TestAnnotationsProtoBuildsWithBuf(t *testing.T) {
 
 	files, err := protodesc.NewFiles(set)
 	require.NoError(t, err)
-	desc, err := files.FindDescriptorByName("grpcmcpgateway.v1.Tool")
+	desc, err := files.FindDescriptorByName("grpcmcpgateway.v1.Server")
 	require.NoError(t, err)
 	_, ok := desc.(protoreflect.MessageDescriptor)
 	require.True(t, ok)
 
-	ext, err := files.FindDescriptorByName("grpcmcpgateway.v1.tool")
+	desc, err = files.FindDescriptorByName("grpcmcpgateway.v1.Tool")
+	require.NoError(t, err)
+	_, ok = desc.(protoreflect.MessageDescriptor)
+	require.True(t, ok)
+
+	ext, err := files.FindDescriptorByName("grpcmcpgateway.v1.server")
+	require.NoError(t, err)
+	_, ok = ext.(protoreflect.ExtensionDescriptor)
+	require.True(t, ok)
+
+	ext, err = files.FindDescriptorByName("grpcmcpgateway.v1.tool")
 	require.NoError(t, err)
 	_, ok = ext.(protoreflect.ExtensionDescriptor)
 	require.True(t, ok)

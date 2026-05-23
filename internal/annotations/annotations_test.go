@@ -46,7 +46,7 @@ func (s *MetadataSuite) SetupSuite() {
 					Name:       ptr("Annotated"),
 					InputType:  ptr(".test.v1.Request"),
 					OutputType: ptr(".test.v1.Response"),
-					Options:   &descriptorpb.MethodOptions{},
+					Options:    &descriptorpb.MethodOptions{},
 				},
 				{
 					Name:       ptr("Plain"),

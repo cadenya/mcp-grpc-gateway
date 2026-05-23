@@ -44,11 +44,11 @@ func (s *ConverterSuite) SetupSuite() {
 			{
 				Name: ptr("Child"),
 				Field: []*descriptorpb.FieldDescriptorProto{{
-					Name:   ptr("label"),
+					Name:     ptr("label"),
 					JsonName: ptr("label"),
-					Number: ptr[int32](1),
-					Label:  &optional,
-					Type:   &typeString,
+					Number:   ptr[int32](1),
+					Label:    &optional,
+					Type:     &typeString,
 				}},
 			},
 			{

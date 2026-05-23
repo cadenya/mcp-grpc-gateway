@@ -92,7 +92,7 @@ func TestLiveGRPCReflectionReturnsToolAnnotations(t *testing.T) {
 
 	methodOptions := reflectedMethodOptions(t, resp.GetFileDescriptorResponse().GetFileDescriptorProto(), "functional/v1/greeter.proto", "GreeterService", "Greet")
 	require.True(t, proto.HasExtension(methodOptions, grpcmcpgatewayv1.E_Tool))
-	tool := proto.GetExtension(methodOptions, grpcmcpgatewayv1.E_Tool).(*grpcmcpgatewayv1.ToolOptions)
+	tool := proto.GetExtension(methodOptions, grpcmcpgatewayv1.E_Tool).(*grpcmcpgatewayv1.Tool)
 	require.Equal(t, "greet_user", tool.GetName())
 	require.Equal(t, "Greets a user by name", tool.GetDescription())
 }

@@ -6,11 +6,11 @@ import "google/protobuf/descriptor.proto";
 
 option go_package = "cadenya.com/mcp-grpc-gateway/gen/grpcmcpgateway/v1;grpcmcpgatewayv1";
 
-message ToolOptions {
+message Tool {
   string name = 1;
   string description = 2;
 }
 
 extend google.protobuf.MethodOptions {
-  ToolOptions tool = 51000;
+  Tool tool = 51000;
 }

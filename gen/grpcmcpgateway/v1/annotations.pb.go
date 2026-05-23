@@ -22,7 +22,7 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type ToolOptions struct {
+type Tool struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	Description   string                 `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
@@ -30,20 +30,20 @@ type ToolOptions struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ToolOptions) Reset() {
-	*x = ToolOptions{}
+func (x *Tool) Reset() {
+	*x = Tool{}
 	mi := &file_grpcmcpgateway_v1_annotations_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ToolOptions) String() string {
+func (x *Tool) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ToolOptions) ProtoMessage() {}
+func (*Tool) ProtoMessage() {}
 
-func (x *ToolOptions) ProtoReflect() protoreflect.Message {
+func (x *Tool) ProtoReflect() protoreflect.Message {
 	mi := &file_grpcmcpgateway_v1_annotations_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -55,19 +55,19 @@ func (x *ToolOptions) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ToolOptions.ProtoReflect.Descriptor instead.
-func (*ToolOptions) Descriptor() ([]byte, []int) {
+// Deprecated: Use Tool.ProtoReflect.Descriptor instead.
+func (*Tool) Descriptor() ([]byte, []int) {
 	return file_grpcmcpgateway_v1_annotations_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *ToolOptions) GetName() string {
+func (x *Tool) GetName() string {
 	if x != nil {
 		return x.Name
 	}
 	return ""
 }
 
-func (x *ToolOptions) GetDescription() string {
+func (x *Tool) GetDescription() string {
 	if x != nil {
 		return x.Description
 	}
@@ -77,7 +77,7 @@ func (x *ToolOptions) GetDescription() string {
 var file_grpcmcpgateway_v1_annotations_proto_extTypes = []protoimpl.ExtensionInfo{
 	{
 		ExtendedType:  (*descriptorpb.MethodOptions)(nil),
-		ExtensionType: (*ToolOptions)(nil),
+		ExtensionType: (*Tool)(nil),
 		Field:         51000,
 		Name:          "grpcmcpgateway.v1.tool",
 		Tag:           "bytes,51000,opt,name=tool",
@@ -87,7 +87,7 @@ var file_grpcmcpgateway_v1_annotations_proto_extTypes = []protoimpl.ExtensionInf
 
 // Extension fields to descriptorpb.MethodOptions.
 var (
-	// optional grpcmcpgateway.v1.ToolOptions tool = 51000;
+	// optional grpcmcpgateway.v1.Tool tool = 51000;
 	E_Tool = &file_grpcmcpgateway_v1_annotations_proto_extTypes[0]
 )
 
@@ -95,11 +95,11 @@ var File_grpcmcpgateway_v1_annotations_proto protoreflect.FileDescriptor
 
 const file_grpcmcpgateway_v1_annotations_proto_rawDesc = "" +
 	"\n" +
-	"#grpcmcpgateway/v1/annotations.proto\x12\x11grpcmcpgateway.v1\x1a google/protobuf/descriptor.proto\"C\n" +
-	"\vToolOptions\x12\x12\n" +
+	"#grpcmcpgateway/v1/annotations.proto\x12\x11grpcmcpgateway.v1\x1a google/protobuf/descriptor.proto\"<\n" +
+	"\x04Tool\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12 \n" +
-	"\vdescription\x18\x02 \x01(\tR\vdescription:T\n" +
-	"\x04tool\x12\x1e.google.protobuf.MethodOptions\x18\xb8\x8e\x03 \x01(\v2\x1e.grpcmcpgateway.v1.ToolOptionsR\x04toolBEZCcadenya.com/mcp-grpc-gateway/gen/grpcmcpgateway/v1;grpcmcpgatewayv1b\x06proto3"
+	"\vdescription\x18\x02 \x01(\tR\vdescription:M\n" +
+	"\x04tool\x12\x1e.google.protobuf.MethodOptions\x18\xb8\x8e\x03 \x01(\v2\x17.grpcmcpgateway.v1.ToolR\x04toolBEZCcadenya.com/mcp-grpc-gateway/gen/grpcmcpgateway/v1;grpcmcpgatewayv1b\x06proto3"
 
 var (
 	file_grpcmcpgateway_v1_annotations_proto_rawDescOnce sync.Once
@@ -115,12 +115,12 @@ func file_grpcmcpgateway_v1_annotations_proto_rawDescGZIP() []byte {
 
 var file_grpcmcpgateway_v1_annotations_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_grpcmcpgateway_v1_annotations_proto_goTypes = []any{
-	(*ToolOptions)(nil),                // 0: grpcmcpgateway.v1.ToolOptions
+	(*Tool)(nil),                       // 0: grpcmcpgateway.v1.Tool
 	(*descriptorpb.MethodOptions)(nil), // 1: google.protobuf.MethodOptions
 }
 var file_grpcmcpgateway_v1_annotations_proto_depIdxs = []int32{
 	1, // 0: grpcmcpgateway.v1.tool:extendee -> google.protobuf.MethodOptions
-	0, // 1: grpcmcpgateway.v1.tool:type_name -> grpcmcpgateway.v1.ToolOptions
+	0, // 1: grpcmcpgateway.v1.tool:type_name -> grpcmcpgateway.v1.Tool
 	2, // [2:2] is the sub-list for method output_type
 	2, // [2:2] is the sub-list for method input_type
 	1, // [1:2] is the sub-list for extension type_name

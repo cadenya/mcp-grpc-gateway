@@ -13,7 +13,6 @@ import (
 
 var toolExtensionNames = []protoreflect.FullName{
 	"grpcmcpgateway.v1.tool",
-	"grpcmcpgateway.v1.Tool",
 }
 
 type ToolMetadata struct {

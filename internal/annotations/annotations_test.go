@@ -70,7 +70,7 @@ func (s *MetadataSuite) SetupSuite() {
 			"google/protobuf/descriptor.proto",
 		},
 		MessageType: []*descriptorpb.DescriptorProto{{
-			Name: ptr("ToolOptions"),
+			Name: ptr("Tool"),
 			Field: []*descriptorpb.FieldDescriptorProto{
 				{Name: ptr("name"), JsonName: ptr("name"), Number: ptr[int32](1), Label: &optional, Type: &typeString},
 				{Name: ptr("description"), JsonName: ptr("description"), Number: ptr[int32](2), Label: &optional, Type: &typeString},
@@ -81,7 +81,7 @@ func (s *MetadataSuite) SetupSuite() {
 			Number:   ptr[int32](51000),
 			Label:    &optional,
 			Type:     &typeMessage,
-			TypeName: ptr(".grpcmcpgateway.v1.ToolOptions"),
+			TypeName: ptr(".grpcmcpgateway.v1.Tool"),
 			Extendee: ptr(".google.protobuf.MethodOptions"),
 			JsonName: ptr("tool"),
 		}},

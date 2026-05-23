@@ -31,7 +31,7 @@ func TestAnnotationsProtoBuildsWithBuf(t *testing.T) {
 
 	files, err := protodesc.NewFiles(set)
 	require.NoError(t, err)
-	desc, err := files.FindDescriptorByName("grpcmcpgateway.v1.ToolOptions")
+	desc, err := files.FindDescriptorByName("grpcmcpgateway.v1.Tool")
 	require.NoError(t, err)
 	_, ok := desc.(protoreflect.MessageDescriptor)
 	require.True(t, ok)

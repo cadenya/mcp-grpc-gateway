@@ -6,6 +6,7 @@ import (
 	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/reflect/protoregistry"
 	"google.golang.org/protobuf/types/descriptorpb"
 	"google.golang.org/protobuf/types/dynamicpb"
 )
@@ -25,6 +26,11 @@ func ForMethod(method protoreflect.MethodDescriptor) ToolMetadata {
 	if method == nil || method.Options() == nil {
 		return meta
 	}
+	options := method.Options().(*descriptorpb.MethodOptions)
+
+	if meta, ok := fromRegisteredExtension(meta, options); ok {
+		return meta
+	}
 
 	ext := findToolExtension(method.ParentFile())
 	if ext == nil {
@@ -32,7 +38,6 @@ func ForMethod(method protoreflect.MethodDescriptor) ToolMetadata {
 	}
 
 	extType := dynamicpb.NewExtensionType(ext)
-	options := method.Options().(*descriptorpb.MethodOptions)
 	if !proto.HasExtension(options, extType) {
 		msg := dynamicpb.NewMessage(ext.Message())
 		if !unmarshalUnknownExtension(options.ProtoReflect().GetUnknown(), ext, msg) {
@@ -51,6 +56,22 @@ func ForMethod(method protoreflect.MethodDescriptor) ToolMetadata {
 	}
 
 	return applyToolMessage(meta, msg)
+}
+
+func fromRegisteredExtension(meta ToolMetadata, options *descriptorpb.MethodOptions) (ToolMetadata, bool) {
+	for _, name := range toolExtensionNames {
+		extType, err := protoregistry.GlobalTypes.FindExtensionByName(name)
+		if err != nil || !proto.HasExtension(options, extType) {
+			continue
+		}
+		value := proto.GetExtension(options, extType)
+		protoMsg, ok := value.(proto.Message)
+		if !ok || protoMsg == nil {
+			continue
+		}
+		return applyToolMessage(meta, protoMsg.ProtoReflect()), true
+	}
+	return meta, false
 }
 
 func applyToolMessage(meta ToolMetadata, msg protoreflect.Message) ToolMetadata {

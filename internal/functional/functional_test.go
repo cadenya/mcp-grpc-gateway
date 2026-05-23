@@ -1,0 +1,93 @@
+package functional_test
+
+import (
+	"context"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"cadenya.com/mcp-grpc-gateway/internal/discovery"
+	"cadenya.com/mcp-grpc-gateway/internal/gateway"
+	"cadenya.com/mcp-grpc-gateway/internal/testpb"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/reflection"
+)
+
+func TestAnnotatedGRPCServiceIsExposedThroughMCPEndpoint(t *testing.T) {
+	ctx := context.Background()
+	grpcAddr, stopGRPC := startGreeterGRPCServer(t)
+	defer stopGRPC()
+
+	grpcClient, err := grpc.NewClient(grpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+	defer grpcClient.Close()
+
+	service, err := discovery.LoadService(ctx, grpcClient, "functional.v1.GreeterService")
+	require.NoError(t, err)
+
+	mcpServer := mcp.NewServer(&mcp.Implementation{Name: "functional-gateway", Version: "test"}, nil)
+	require.NoError(t, gateway.RegisterTools(mcpServer, grpcClient, service))
+
+	httpServer := httptest.NewServer(mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
+		return mcpServer
+	}, &mcp.StreamableHTTPOptions{JSONResponse: true}))
+	defer httpServer.Close()
+
+	mcpClient := mcp.NewClient(&mcp.Implementation{Name: "functional-client", Version: "test"}, nil)
+	session, err := mcpClient.Connect(ctx, &mcp.StreamableClientTransport{
+		Endpoint:             httpServer.URL,
+		HTTPClient:           httpServer.Client(),
+		DisableStandaloneSSE: true,
+	}, nil)
+	require.NoError(t, err)
+	defer session.Close()
+
+	var tools []*mcp.Tool
+	for tool, err := range session.Tools(ctx, nil) {
+		require.NoError(t, err)
+		tools = append(tools, tool)
+	}
+	require.Len(t, tools, 1)
+	require.Equal(t, "greet_user", tools[0].Name)
+	require.Equal(t, "Greets a user by name", tools[0].Description)
+
+	result, err := session.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "greet_user",
+		Arguments: map[string]any{"name": "Ada"},
+	})
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+	require.Equal(t, map[string]any{"greeting": "Hello, Ada"}, result.StructuredContent)
+}
+
+func startGreeterGRPCServer(t *testing.T) (string, func()) {
+	t.Helper()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	server := grpc.NewServer()
+	testpb.RegisterGreeterServiceServer(server, &greeterServer{})
+	reflection.Register(server)
+
+	go func() {
+		_ = server.Serve(listener)
+	}()
+
+	return listener.Addr().String(), func() {
+		server.Stop()
+		_ = listener.Close()
+	}
+}
+
+type greeterServer struct {
+	testpb.UnimplementedGreeterServiceServer
+}
+
+func (greeterServer) Greet(_ context.Context, req *testpb.GreetRequest) (*testpb.GreetResponse, error) {
+	return &testpb.GreetResponse{Greeting: "Hello, " + req.GetName()}, nil
+}

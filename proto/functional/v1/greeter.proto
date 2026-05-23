@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package functional.v1;
+
+import "grpcmcpgateway/v1/annotations.proto";
+
+option go_package = "cadenya.com/mcp-grpc-gateway/internal/testpb;testpb";
+
+service GreeterService {
+  rpc Greet(GreetRequest) returns (GreetResponse) {
+    option (grpcmcpgateway.v1.tool) = {
+      name: "greet_user"
+      description: "Greets a user by name"
+    };
+  }
+
+  rpc WatchGreetings(WatchGreetingsRequest) returns (stream WatchGreetingsResponse);
+}
+
+message GreetRequest {
+  string name = 1;
+}
+
+message GreetResponse {
+  string greeting = 1;
+}
+
+message WatchGreetingsRequest {
+  string name = 1;
+}
+
+message WatchGreetingsResponse {
+  string greeting = 1;
+}

@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	grpcmcpgatewayv1 "cadenya.com/mcp-grpc-gateway/gen/grpcmcpgateway/v1"
 	"cadenya.com/mcp-grpc-gateway/internal/discovery"
 	"cadenya.com/mcp-grpc-gateway/internal/gateway"
 	"cadenya.com/mcp-grpc-gateway/internal/testpb"
@@ -15,6 +16,9 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/reflection"
+	reflectionv1alpha "google.golang.org/grpc/reflection/grpc_reflection_v1alpha"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/descriptorpb"
 )
 
 func TestAnnotatedGRPCServiceIsExposedThroughMCPEndpoint(t *testing.T) {
@@ -64,6 +68,35 @@ func TestAnnotatedGRPCServiceIsExposedThroughMCPEndpoint(t *testing.T) {
 	require.Equal(t, map[string]any{"greeting": "Hello, Ada"}, result.StructuredContent)
 }
 
+func TestLiveGRPCReflectionReturnsToolAnnotations(t *testing.T) {
+	ctx := context.Background()
+	grpcAddr, stopGRPC := startGreeterGRPCServer(t)
+	defer stopGRPC()
+
+	grpcClient, err := grpc.NewClient(grpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+	defer grpcClient.Close()
+
+	reflectionClient := reflectionv1alpha.NewServerReflectionClient(grpcClient)
+	stream, err := reflectionClient.ServerReflectionInfo(ctx)
+	require.NoError(t, err)
+	require.NoError(t, stream.Send(&reflectionv1alpha.ServerReflectionRequest{
+		MessageRequest: &reflectionv1alpha.ServerReflectionRequest_FileContainingSymbol{
+			FileContainingSymbol: "functional.v1.GreeterService",
+		},
+	}))
+
+	resp, err := stream.Recv()
+	require.NoError(t, err)
+	require.Nil(t, resp.GetErrorResponse())
+
+	methodOptions := reflectedMethodOptions(t, resp.GetFileDescriptorResponse().GetFileDescriptorProto(), "functional/v1/greeter.proto", "GreeterService", "Greet")
+	require.True(t, proto.HasExtension(methodOptions, grpcmcpgatewayv1.E_Tool))
+	tool := proto.GetExtension(methodOptions, grpcmcpgatewayv1.E_Tool).(*grpcmcpgatewayv1.ToolOptions)
+	require.Equal(t, "greet_user", tool.GetName())
+	require.Equal(t, "Greets a user by name", tool.GetDescription())
+}
+
 func startGreeterGRPCServer(t *testing.T) (string, func()) {
 	t.Helper()
 
@@ -90,4 +123,29 @@ type greeterServer struct {
 
 func (greeterServer) Greet(_ context.Context, req *testpb.GreetRequest) (*testpb.GreetResponse, error) {
 	return &testpb.GreetResponse{Greeting: "Hello, " + req.GetName()}, nil
+}
+
+func reflectedMethodOptions(t *testing.T, rawFiles [][]byte, filePath string, serviceName string, methodName string) *descriptorpb.MethodOptions {
+	t.Helper()
+
+	for _, rawFile := range rawFiles {
+		file := &descriptorpb.FileDescriptorProto{}
+		require.NoError(t, proto.Unmarshal(rawFile, file))
+		if file.GetName() != filePath {
+			continue
+		}
+		for _, service := range file.GetService() {
+			if service.GetName() != serviceName {
+				continue
+			}
+			for _, method := range service.GetMethod() {
+				if method.GetName() == methodName {
+					return method.GetOptions()
+				}
+			}
+		}
+	}
+
+	t.Fatalf("method %s/%s not found in reflected file %s", serviceName, methodName, filePath)
+	return nil
 }

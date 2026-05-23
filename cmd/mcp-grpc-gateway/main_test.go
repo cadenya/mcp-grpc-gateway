@@ -1,28 +1,40 @@
 package main
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestParseConfigDefaultsAndNormalizesPath(t *testing.T) {
-	cfg, err := parseConfig([]string{
+func TestCommandDefaultsAndNormalizesPath(t *testing.T) {
+	var got config
+	cmd := newCommand(func(_ context.Context, cfg config) error {
+		got = cfg
+		return nil
+	})
+
+	err := cmd.Run(context.Background(), []string{
+		"mcp-grpc-gateway",
 		"--grpc-host", "localhost:50051",
 		"--service", "test.v1.Service",
 		"--path", "mcp",
 	})
 
 	require.NoError(t, err)
-	require.Equal(t, "0.0.0.0:8080", cfg.addr)
-	require.Equal(t, "localhost:50051", cfg.grpcHost)
-	require.Equal(t, "test.v1.Service", cfg.service)
-	require.Equal(t, "/mcp", cfg.path)
-	require.False(t, cfg.tls)
+	require.Equal(t, "0.0.0.0:8080", got.addr)
+	require.Equal(t, "localhost:50051", got.grpcHost)
+	require.Equal(t, "test.v1.Service", got.service)
+	require.Equal(t, "/mcp", got.path)
+	require.False(t, got.tls)
 }
 
-func TestParseConfigRequiresGRPCHostAndService(t *testing.T) {
-	_, err := parseConfig(nil)
+func TestCommandRequiresGRPCHostAndService(t *testing.T) {
+	cmd := newCommand(func(context.Context, config) error {
+		t.Fatal("action should not run for invalid config")
+		return nil
+	})
+	err := cmd.Run(context.Background(), []string{"mcp-grpc-gateway"})
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "--grpc-host is required")

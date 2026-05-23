@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -13,6 +12,7 @@ import (
 	"cadenya.com/mcp-grpc-gateway/internal/discovery"
 	"cadenya.com/mcp-grpc-gateway/internal/gateway"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/urfave/cli/v3"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -27,28 +27,56 @@ type config struct {
 }
 
 func main() {
-	cfg, err := parseConfig(os.Args[1:])
-	if err != nil {
-		log.Fatal(err)
-	}
-	if err := run(context.Background(), cfg); err != nil {
+	if err := newCommand(run).Run(context.Background(), os.Args); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func parseConfig(args []string) (config, error) {
-	cfg := config{
-		addr: "0.0.0.0:8080",
-		path: "/mcp",
+func newCommand(action func(context.Context, config) error) *cli.Command {
+	return &cli.Command{
+		Name:  "mcp-grpc-gateway",
+		Usage: "Expose reflected gRPC unary RPCs as MCP tools",
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:  "addr",
+				Value: "0.0.0.0:8080",
+				Usage: "HTTP listen address",
+			},
+			&cli.StringFlag{
+				Name:  "grpc-host",
+				Usage: "gRPC host to reflect and invoke",
+			},
+			&cli.StringFlag{
+				Name:  "service",
+				Usage: "fully-qualified gRPC service name",
+			},
+			&cli.StringFlag{
+				Name:  "path",
+				Value: "/mcp",
+				Usage: "HTTP path for the MCP endpoint",
+			},
+			&cli.BoolFlag{
+				Name:  "tls",
+				Usage: "connect to gRPC using TLS with system roots",
+			},
+		},
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			cfg, err := configFromCommand(cmd)
+			if err != nil {
+				return err
+			}
+			return action(ctx, cfg)
+		},
 	}
-	fs := flag.NewFlagSet("mcp-grpc-gateway", flag.ContinueOnError)
-	fs.StringVar(&cfg.addr, "addr", cfg.addr, "HTTP listen address")
-	fs.StringVar(&cfg.grpcHost, "grpc-host", "", "gRPC host to reflect and invoke")
-	fs.StringVar(&cfg.service, "service", "", "fully-qualified gRPC service name")
-	fs.StringVar(&cfg.path, "path", cfg.path, "HTTP path for the MCP endpoint")
-	fs.BoolVar(&cfg.tls, "tls", false, "connect to gRPC using TLS with system roots")
-	if err := fs.Parse(args); err != nil {
-		return config{}, err
+}
+
+func configFromCommand(cmd *cli.Command) (config, error) {
+	cfg := config{
+		addr:     cmd.String("addr"),
+		grpcHost: cmd.String("grpc-host"),
+		service:  cmd.String("service"),
+		path:     cmd.String("path"),
+		tls:      cmd.Bool("tls"),
 	}
 	if cfg.path == "" {
 		cfg.path = "/mcp"

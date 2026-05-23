@@ -5,6 +5,7 @@ go 1.26.1
 require (
 	github.com/modelcontextprotocol/go-sdk v1.6.1
 	github.com/stretchr/testify v1.11.1
+	github.com/urfave/cli/v3 v3.9.0
 	google.golang.org/grpc v1.81.1
 	google.golang.org/protobuf v1.36.11
 )

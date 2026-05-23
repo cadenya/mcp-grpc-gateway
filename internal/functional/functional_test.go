@@ -11,6 +11,7 @@ import (
 	"cadenya.com/mcp-grpc-gateway/internal/discovery"
 	"cadenya.com/mcp-grpc-gateway/internal/gateway"
 	"cadenya.com/mcp-grpc-gateway/internal/testpb"
+	"cadenya.com/mcp-grpc-gateway/internal/toolcache"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -18,6 +19,7 @@ import (
 	"google.golang.org/grpc/reflection"
 	reflectionv1alpha "google.golang.org/grpc/reflection/grpc_reflection_v1alpha"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
@@ -108,6 +110,52 @@ func TestLiveGRPCReflectionReturnsToolAnnotations(t *testing.T) {
 	server := proto.GetExtension(serviceOptions, grpcmcpgatewayv1.E_Server).(*grpcmcpgatewayv1.Server)
 	require.Equal(t, "greeter", server.GetName())
 	require.Equal(t, "Greeter Service", server.GetTitle())
+}
+
+func TestMCPEndpointKeepsCachedToolsWhenReflectionReloadFails(t *testing.T) {
+	ctx := context.Background()
+	grpcAddr, stopGRPC := startGreeterGRPCServer(t)
+	defer stopGRPC()
+
+	grpcClient, err := grpc.NewClient(grpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+	defer grpcClient.Close()
+
+	cache := toolcache.New(toolcache.Options{
+		Conn:    grpcClient,
+		Service: "functional.v1.GreeterService",
+	})
+	require.NoError(t, cache.Reload(ctx))
+	initial := cache.Current()
+	require.NotNil(t, initial)
+
+	httpServer := httptest.NewServer(mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
+		return cache.Current()
+	}, &mcp.StreamableHTTPOptions{JSONResponse: true}))
+	defer httpServer.Close()
+
+	cache.SetLoader(func(context.Context, grpc.ClientConnInterface, string) (protoreflect.ServiceDescriptor, error) {
+		return nil, context.DeadlineExceeded
+	})
+	require.Error(t, cache.Reload(ctx))
+	require.Same(t, initial, cache.Current())
+
+	mcpClient := mcp.NewClient(&mcp.Implementation{Name: "functional-client", Version: "test"}, nil)
+	session, err := mcpClient.Connect(ctx, &mcp.StreamableClientTransport{
+		Endpoint:             httpServer.URL,
+		HTTPClient:           httpServer.Client(),
+		DisableStandaloneSSE: true,
+	}, nil)
+	require.NoError(t, err)
+	defer session.Close()
+
+	var tools []*mcp.Tool
+	for tool, err := range session.Tools(ctx, nil) {
+		require.NoError(t, err)
+		tools = append(tools, tool)
+	}
+	require.Len(t, tools, 1)
+	require.Equal(t, "greet_user", tools[0].Name)
 }
 
 func startGreeterGRPCServer(t *testing.T) (string, func()) {

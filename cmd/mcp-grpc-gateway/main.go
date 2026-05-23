@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
-	"cadenya.com/mcp-grpc-gateway/internal/discovery"
-	"cadenya.com/mcp-grpc-gateway/internal/gateway"
+	"cadenya.com/mcp-grpc-gateway/internal/toolcache"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/urfave/cli/v3"
 	"google.golang.org/grpc"
@@ -19,11 +19,12 @@ import (
 )
 
 type config struct {
-	addr     string
-	grpcHost string
-	service  string
-	path     string
-	tls      bool
+	addr           string
+	grpcHost       string
+	service        string
+	path           string
+	tls            bool
+	reloadInterval time.Duration
 }
 
 func main() {
@@ -59,6 +60,11 @@ func newCommand(action func(context.Context, config) error) *cli.Command {
 				Name:  "tls",
 				Usage: "connect to gRPC using TLS with system roots",
 			},
+			&cli.DurationFlag{
+				Name:  "reload-interval",
+				Value: time.Minute,
+				Usage: "interval for reloading reflected gRPC tools; set 0 to disable background reloads",
+			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			cfg, err := configFromCommand(cmd)
@@ -72,11 +78,12 @@ func newCommand(action func(context.Context, config) error) *cli.Command {
 
 func configFromCommand(cmd *cli.Command) (config, error) {
 	cfg := config{
-		addr:     cmd.String("addr"),
-		grpcHost: cmd.String("grpc-host"),
-		service:  cmd.String("service"),
-		path:     cmd.String("path"),
-		tls:      cmd.Bool("tls"),
+		addr:           cmd.String("addr"),
+		grpcHost:       cmd.String("grpc-host"),
+		service:        cmd.String("service"),
+		path:           cmd.String("path"),
+		tls:            cmd.Bool("tls"),
+		reloadInterval: cmd.Duration("reload-interval"),
 	}
 	if cfg.path == "" {
 		cfg.path = "/mcp"
@@ -102,18 +109,19 @@ func run(ctx context.Context, cfg config) error {
 	}
 	defer conn.Close()
 
-	service, err := discovery.LoadService(ctx, conn, cfg.service)
-	if err != nil {
+	cache := toolcache.New(toolcache.Options{
+		Conn:    conn,
+		Service: cfg.service,
+	})
+	if err := cache.Reload(ctx); err != nil {
 		return err
 	}
-
-	server := gateway.NewServer(service)
-	if err := gateway.RegisterTools(server, conn, service); err != nil {
-		return err
+	if cfg.reloadInterval > 0 {
+		go cache.Run(ctx, cfg.reloadInterval)
 	}
 
 	handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
-		return server
+		return cache.Current()
 	}, &mcp.StreamableHTTPOptions{})
 	mux := http.NewServeMux()
 	mux.Handle(cfg.path, handler)

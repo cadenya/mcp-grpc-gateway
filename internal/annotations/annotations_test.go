@@ -3,6 +3,7 @@ package annotations_test
 import (
 	"testing"
 
+	grpcmcpgatewayv1 "cadenya.com/mcp-grpc-gateway/gen/grpcmcpgateway/v1"
 	"cadenya.com/mcp-grpc-gateway/internal/annotations"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/protobuf/encoding/protowire"
@@ -92,7 +93,7 @@ func (s *MetadataSuite) SetupSuite() {
 		Extension: []*descriptorpb.FieldDescriptorProto{
 			{
 				Name:     ptr("server"),
-				Number:   ptr[int32](80083),
+				Number:   ptr(grpcmcpgatewayv1.ServerExtensionNumber),
 				Label:    &optional,
 				Type:     &typeMessage,
 				TypeName: ptr(".grpcmcpgateway.v1.Server"),
@@ -101,7 +102,7 @@ func (s *MetadataSuite) SetupSuite() {
 			},
 			{
 				Name:     ptr("tool"),
-				Number:   ptr[int32](80084),
+				Number:   ptr(grpcmcpgatewayv1.ToolExtensionNumber),
 				Label:    &optional,
 				Type:     &typeMessage,
 				TypeName: ptr(".grpcmcpgateway.v1.Tool"),

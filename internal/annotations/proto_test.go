@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	grpcmcpgatewayv1 "cadenya.com/mcp-grpc-gateway/gen/grpcmcpgateway/v1"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protodesc"
@@ -43,11 +44,19 @@ func TestAnnotationsProtoBuildsWithBuf(t *testing.T) {
 
 	ext, err := files.FindDescriptorByName("grpcmcpgateway.v1.server")
 	require.NoError(t, err)
-	_, ok = ext.(protoreflect.ExtensionDescriptor)
+	serverExt, ok := ext.(protoreflect.ExtensionDescriptor)
 	require.True(t, ok)
+	require.Equal(t, protoreflect.FieldNumber(grpcmcpgatewayv1.ServerExtensionNumber), serverExt.Number())
 
 	ext, err = files.FindDescriptorByName("grpcmcpgateway.v1.tool")
 	require.NoError(t, err)
-	_, ok = ext.(protoreflect.ExtensionDescriptor)
+	toolExt, ok := ext.(protoreflect.ExtensionDescriptor)
 	require.True(t, ok)
+	require.Equal(t, protoreflect.FieldNumber(grpcmcpgatewayv1.ToolExtensionNumber), toolExt.Number())
+
+	ext, err = files.FindDescriptorByName("grpcmcpgateway.v1.field")
+	require.NoError(t, err)
+	fieldExt, ok := ext.(protoreflect.ExtensionDescriptor)
+	require.True(t, ok)
+	require.Equal(t, protoreflect.FieldNumber(grpcmcpgatewayv1.FieldExtensionNumber), fieldExt.Number())
 }

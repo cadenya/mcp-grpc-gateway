@@ -8,9 +8,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.cadenya.com/mcp-grpc-gateway/internal/discovery"
 	"go.cadenya.com/mcp-grpc-gateway/internal/gateway"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -21,10 +21,13 @@ import (
 
 type Loader func(context.Context, grpc.ClientConnInterface, []string) ([]protoreflect.ServiceDescriptor, error)
 
+type ServerMetadata = gateway.ServerMetadata
+
 type Options struct {
 	Conn                   grpc.ClientConnInterface
 	Service                string
 	Services               []string
+	Server                 ServerMetadata
 	Loader                 Loader
 	Logger                 *slog.Logger
 	Tracer                 trace.Tracer
@@ -39,6 +42,7 @@ type Cache struct {
 	loader                 Loader
 	logger                 *slog.Logger
 	tracer                 trace.Tracer
+	server                 ServerMetadata
 	requireToolAnnotations bool
 	current                atomic.Pointer[mcp.Server]
 	version                atomic.Uint64
@@ -67,6 +71,7 @@ func New(opts Options) *Cache {
 		loader:                 loader,
 		logger:                 logger,
 		tracer:                 tracer,
+		server:                 opts.Server,
 		requireToolAnnotations: opts.RequireToolAnnotations,
 	}
 }
@@ -114,7 +119,7 @@ func (c *Cache) Reload(ctx context.Context) error {
 		c.logger.Error("reload reflected tools failed", "grpc_services", c.services, "error", err)
 		return err
 	}
-	server := gateway.NewServer(services[0])
+	server := gateway.NewServer(c.server)
 	registerOpts := []gateway.RegisterOption{}
 	if c.requireToolAnnotations {
 		registerOpts = append(registerOpts, gateway.WithRequireToolAnnotations(true))

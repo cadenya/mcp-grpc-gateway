@@ -6,16 +6,29 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.cadenya.com/mcp-grpc-gateway/internal/annotations"
 	"go.cadenya.com/mcp-grpc-gateway/internal/grpcinvoke"
 	"go.cadenya.com/mcp-grpc-gateway/internal/schema"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
-func NewServer(service protoreflect.ServiceDescriptor) *mcp.Server {
-	meta := annotations.ForService(service)
+type ServerMetadata struct {
+	Name         string
+	Title        string
+	Version      string
+	Instructions string
+	WebsiteURL   string
+}
+
+func NewServer(meta ServerMetadata) *mcp.Server {
+	if meta.Name == "" {
+		meta.Name = "mcp-grpc-gateway"
+	}
+	if meta.Version == "" {
+		meta.Version = "dev"
+	}
 	return mcp.NewServer(&mcp.Implementation{
 		Name:       meta.Name,
 		Title:      meta.Title,

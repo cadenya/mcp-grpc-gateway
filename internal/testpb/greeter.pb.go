@@ -210,13 +210,12 @@ const file_functional_v1_greeter_proto_rawDesc = "" +
 	"\x15WatchGreetingsRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"4\n" +
 	"\x16WatchGreetingsResponse\x12\x1a\n" +
-	"\bgreeting\x18\x01 \x01(\tR\bgreeting2\xcb\x02\n" +
+	"\bgreeting\x18\x01 \x01(\tR\bgreeting2\xde\x01\n" +
 	"\x0eGreeterService\x12k\n" +
 	"\x05Greet\x12\x1b.functional.v1.GreetRequest\x1a\x1c.functional.v1.GreetResponse\"'\xa2\x8d'#\n" +
 	"\n" +
 	"greet_user\x12\x15Greets a user by name\x12_\n" +
-	"\x0eWatchGreetings\x12$.functional.v1.WatchGreetingsRequest\x1a%.functional.v1.WatchGreetingsResponse0\x01\x1ak\x9a\x8d'g\n" +
-	"\agreeter\x12\x0fGreeter Service\x1a\x051.0.0\"'Use this server to greet users by name.*\x1bhttps://example.com/greeterB8Z6go.cadenya.com/mcp-grpc-gateway/internal/testpb;testpbb\x06proto3"
+	"\x0eWatchGreetings\x12$.functional.v1.WatchGreetingsRequest\x1a%.functional.v1.WatchGreetingsResponse0\x01B8Z6go.cadenya.com/mcp-grpc-gateway/internal/testpb;testpbb\x06proto3"
 
 var (
 	file_functional_v1_greeter_proto_rawDescOnce sync.Once

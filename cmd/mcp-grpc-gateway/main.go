@@ -13,10 +13,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/urfave/cli/v3"
 	"go.cadenya.com/mcp-grpc-gateway/internal/mcphttp"
 	"go.cadenya.com/mcp-grpc-gateway/internal/telemetry"
 	"go.cadenya.com/mcp-grpc-gateway/internal/toolcache"
-	"github.com/urfave/cli/v3"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -35,6 +35,11 @@ type config struct {
 	otelInsecure           bool
 	requireToolAnnotations bool
 	forwardHeaders         []string
+	mcpName                string
+	mcpTitle               string
+	mcpVersion             string
+	mcpInstructions        string
+	mcpWebsiteURL          string
 }
 
 func main() {
@@ -105,6 +110,33 @@ func newCommand(action func(context.Context, config) error) *cli.Command {
 				Name:  "forward-header",
 				Usage: "HTTP header to forward as gRPC metadata on tool calls; may be repeated",
 			},
+			&cli.StringFlag{
+				Name:    "mcp-name",
+				Value:   "mcp-grpc-gateway",
+				Usage:   "MCP server implementation name",
+				Sources: cli.EnvVars("MCP_NAME"),
+			},
+			&cli.StringFlag{
+				Name:    "mcp-title",
+				Usage:   "MCP server display title",
+				Sources: cli.EnvVars("MCP_TITLE"),
+			},
+			&cli.StringFlag{
+				Name:    "mcp-version",
+				Value:   "dev",
+				Usage:   "MCP server implementation version",
+				Sources: cli.EnvVars("MCP_VERSION"),
+			},
+			&cli.StringFlag{
+				Name:    "mcp-instructions",
+				Usage:   "MCP server instructions returned during initialize",
+				Sources: cli.EnvVars("MCP_INSTRUCTIONS"),
+			},
+			&cli.StringFlag{
+				Name:    "mcp-website-url",
+				Usage:   "MCP server website URL returned during initialize",
+				Sources: cli.EnvVars("MCP_WEBSITE_URL"),
+			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			cfg, err := configFromCommand(cmd)
@@ -130,6 +162,11 @@ func configFromCommand(cmd *cli.Command) (config, error) {
 		otelInsecure:           cmd.Bool("otel-insecure"),
 		requireToolAnnotations: cmd.Bool("require-tool-annotations"),
 		forwardHeaders:         cmd.StringSlice("forward-header"),
+		mcpName:                cmd.String("mcp-name"),
+		mcpTitle:               cmd.String("mcp-title"),
+		mcpVersion:             cmd.String("mcp-version"),
+		mcpInstructions:        cmd.String("mcp-instructions"),
+		mcpWebsiteURL:          cmd.String("mcp-website-url"),
 	}
 	if cfg.path == "" {
 		cfg.path = "/mcp"
@@ -170,8 +207,15 @@ func run(ctx context.Context, cfg config) error {
 	defer conn.Close()
 
 	cache := toolcache.New(toolcache.Options{
-		Conn:                   conn,
-		Services:               cfg.services,
+		Conn:     conn,
+		Services: cfg.services,
+		Server: toolcache.ServerMetadata{
+			Name:         cfg.mcpName,
+			Title:        cfg.mcpTitle,
+			Version:      cfg.mcpVersion,
+			Instructions: cfg.mcpInstructions,
+			WebsiteURL:   cfg.mcpWebsiteURL,
+		},
 		Logger:                 logger,
 		RequireToolAnnotations: cfg.requireToolAnnotations,
 	})

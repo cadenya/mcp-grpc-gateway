@@ -38,6 +38,11 @@ func TestCommandDefaultsAndNormalizesPath(t *testing.T) {
 	require.Empty(t, got.otelEndpoint)
 	require.False(t, got.requireToolAnnotations)
 	require.Empty(t, got.forwardHeaders)
+	require.Equal(t, "mcp-grpc-gateway", got.mcpName)
+	require.Empty(t, got.mcpTitle)
+	require.Equal(t, "dev", got.mcpVersion)
+	require.Empty(t, got.mcpInstructions)
+	require.Empty(t, got.mcpWebsiteURL)
 }
 
 func TestCommandRequiresGRPCHostAndService(t *testing.T) {
@@ -171,6 +176,63 @@ func TestCommandParsesForwardHeaders(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, []string{"Authorization", "X-Request-ID"}, got.forwardHeaders)
+}
+
+func TestCommandReadsMCPMetadataFromEnvironment(t *testing.T) {
+	t.Setenv("MCP_NAME", "env-gateway")
+	t.Setenv("MCP_TITLE", "Env Gateway")
+	t.Setenv("MCP_VERSION", "2.0.0")
+	t.Setenv("MCP_INSTRUCTIONS", "Use env metadata.")
+	t.Setenv("MCP_WEBSITE_URL", "https://example.com/env")
+
+	var got config
+	cmd := newCommand(func(_ context.Context, cfg config) error {
+		got = cfg
+		return nil
+	})
+
+	err := cmd.Run(context.Background(), []string{
+		"mcp-grpc-gateway",
+		"--grpc-host", "localhost:50051",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "env-gateway", got.mcpName)
+	require.Equal(t, "Env Gateway", got.mcpTitle)
+	require.Equal(t, "2.0.0", got.mcpVersion)
+	require.Equal(t, "Use env metadata.", got.mcpInstructions)
+	require.Equal(t, "https://example.com/env", got.mcpWebsiteURL)
+}
+
+func TestCommandMCPMetadataFlagsOverrideEnvironment(t *testing.T) {
+	t.Setenv("MCP_NAME", "env-gateway")
+	t.Setenv("MCP_TITLE", "Env Gateway")
+	t.Setenv("MCP_VERSION", "2.0.0")
+	t.Setenv("MCP_INSTRUCTIONS", "Use env metadata.")
+	t.Setenv("MCP_WEBSITE_URL", "https://example.com/env")
+
+	var got config
+	cmd := newCommand(func(_ context.Context, cfg config) error {
+		got = cfg
+		return nil
+	})
+
+	err := cmd.Run(context.Background(), []string{
+		"mcp-grpc-gateway",
+		"--grpc-host", "localhost:50051",
+		"--mcp-name", "flag-gateway",
+		"--mcp-title", "Flag Gateway",
+		"--mcp-version", "3.0.0",
+		"--mcp-instructions", "Use flag metadata.",
+		"--mcp-website-url", "https://example.com/flag",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "flag-gateway", got.mcpName)
+	require.Equal(t, "Flag Gateway", got.mcpTitle)
+	require.Equal(t, "3.0.0", got.mcpVersion)
+	require.Equal(t, "Use flag metadata.", got.mcpInstructions)
+	require.Equal(t, "https://example.com/flag", got.mcpWebsiteURL)
 }
 
 func TestServeHTTPShutsDownWhenContextIsCanceled(t *testing.T) {

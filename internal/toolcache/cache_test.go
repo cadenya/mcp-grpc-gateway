@@ -6,10 +6,10 @@ import (
 	"net"
 	"testing"
 
-	"go.cadenya.com/mcp-grpc-gateway/internal/testpb"
-	"go.cadenya.com/mcp-grpc-gateway/internal/toolcache"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
+	"go.cadenya.com/mcp-grpc-gateway/internal/testpb"
+	"go.cadenya.com/mcp-grpc-gateway/internal/toolcache"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/reflection"
@@ -55,6 +55,13 @@ func TestCacheReloadSwapsServerAfterSuccessfulReflectionReload(t *testing.T) {
 	cache := toolcache.New(toolcache.Options{
 		Conn:    conn,
 		Service: "functional.v1.GreeterService",
+		Server: toolcache.ServerMetadata{
+			Name:         "runtime-gateway",
+			Title:        "Runtime Gateway",
+			Version:      "1.2.3",
+			Instructions: "Runtime instructions.",
+			WebsiteURL:   "https://example.com/runtime",
+		},
 	})
 	require.NoError(t, cache.Reload(ctx))
 	initial := cache.Current()
@@ -65,6 +72,13 @@ func TestCacheReloadSwapsServerAfterSuccessfulReflectionReload(t *testing.T) {
 
 	session := connectMCP(t, cache.Current())
 	defer session.Close()
+	init := session.InitializeResult()
+	require.Equal(t, "runtime-gateway", init.ServerInfo.Name)
+	require.Equal(t, "Runtime Gateway", init.ServerInfo.Title)
+	require.Equal(t, "1.2.3", init.ServerInfo.Version)
+	require.Equal(t, "https://example.com/runtime", init.ServerInfo.WebsiteURL)
+	require.Equal(t, "Runtime instructions.", init.Instructions)
+
 	var tools []*mcp.Tool
 	for tool, err := range session.Tools(ctx, nil) {
 		require.NoError(t, err)

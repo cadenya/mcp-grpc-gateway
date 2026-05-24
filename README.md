@@ -6,7 +6,7 @@
 
 MCP gRPC Gateway exposes existing gRPC services as stateless MCP tools over HTTP. It connects to a downstream gRPC server, reads its live service descriptors through gRPC reflection, converts unary RPC request messages into JSON Schema tool inputs, and invokes the selected RPC when an MCP client calls the tool.
 
-The gateway is designed for teams that already describe service contracts in protobuf and want MCP support without hand-writing a parallel tool server. Protobuf annotations can provide MCP server metadata, tool names, and tool descriptions, while reflection lets the gateway reload tool definitions as services change. In practice, your gRPC service remains the source of truth and the gateway can pick up newly deployed tools without a gateway redeploy.
+The gateway is designed for teams that already describe service contracts in protobuf and want MCP support without hand-writing a parallel tool server. Protobuf annotations can provide tool names and tool descriptions, while reflection lets the gateway reload tool definitions as services change. In practice, your gRPC service remains the source of truth and the gateway can pick up newly deployed tools without a gateway redeploy.
 
 ## Quick Start
 
@@ -58,7 +58,7 @@ Buf label: buf.build/cadenya-agents/mcp-grpc-gateway:v0.1.0
 
 This gateway only supports stateless MCP over HTTP. It mounts the MCP Go SDK's Streamable HTTP transport with stateless JSON responses, so each request is handled independently and the gateway does not issue or require `Mcp-Session-Id` headers.
 
-The endpoint is intended for HTTP `POST` requests with JSON responses. It does not expose stdio, stateful SSE sessions, resumable streams, or event-store backed session recovery.
+The endpoint is intended for HTTP `POST` requests with JSON responses. **It does not expose stdio, stateful SSE sessions, resumable streams, or event-store backed session recovery.**
 
 ## Forwarding Headers
 
@@ -96,9 +96,37 @@ mcp-grpc-gateway \
 
 Tool names must be unique across all loaded services. If two RPCs produce the same MCP tool name, the first one is kept and the gateway emits a warning log with the colliding service name and tool name.
 
+## MCP Server Metadata
+
+MCP server metadata belongs to the gateway process, not the reflected gRPC services. A single MCP server can aggregate tools from multiple gRPC services, so service-level protobuf annotations are not used to set the MCP server name, title, version, instructions, or website URL.
+
+Configure those values with CLI flags:
+
+```bash
+mcp-grpc-gateway \
+  --grpc-host your-grpc-service:50051 \
+  --mcp-name "objectives-gateway" \
+  --mcp-title "Objectives Gateway" \
+  --mcp-version "1.0.0" \
+  --mcp-instructions "Use these tools to inspect workspace objectives." \
+  --mcp-website-url "https://yourapp.example.com"
+```
+
+The same values can be set with environment variables:
+
+```bash
+MCP_NAME=objectives-gateway
+MCP_TITLE="Objectives Gateway"
+MCP_VERSION=1.0.0
+MCP_INSTRUCTIONS="Use these tools to inspect workspace objectives."
+MCP_WEBSITE_URL=https://yourapp.example.com
+```
+
+CLI flags override environment variables. By default, the gateway reports `mcp-grpc-gateway` as the MCP server name and `dev` as the version.
+
 ## Annotations
 
-By default your RPC definitions in your gRPC endpoint will be exposed 1:1 for RPC names as tools. You can override this behavior, add tool descriptions for LLMs, and configure MCP server metadata with annotations.
+By default your RPC definitions in your gRPC endpoint will be exposed 1:1 for RPC names as tools. You can override tool names and add tool descriptions for LLMs with method annotations.
 
 ```proto
 syntax = "proto3";
@@ -108,14 +136,6 @@ package yourapp.v1;
 import "grpcmcpgateway/v1/annotations.proto";
 
 service Service {
-  option (grpcmcpgateway.v1.server) = {
-    name: "objectives"
-    title: "Objectives"
-    version: "1.0.0"
-    instructions: "Use these tools to inspect recent workspace objectives."
-    website_url: "https://yourapp.example.com"
-  };
-
   rpc GetRecentObjectives(RecentObjectivesRequest) returns (ObjectiveObjectivesResponse) {
     option (grpcmcpgateway.v1.tool) = {
       name: "recent_objectives"
@@ -155,16 +175,10 @@ buf dep update
 import "grpcmcpgateway/v1/annotations.proto";
 ```
 
-4. Add MCP server and tool annotations.
+4. Add MCP tool annotations.
 
 ```proto
 service ObjectivesService {
-  option (grpcmcpgateway.v1.server) = {
-    name: "objectives"
-    title: "Objectives"
-    version: "1.0.0"
-  };
-
   rpc ListObjectives(ListObjectivesRequest) returns (ListObjectivesResponse) {
     option (grpcmcpgateway.v1.tool) = {
       name: "list_objectives"

@@ -8,14 +8,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/stretchr/testify/require"
 	grpcmcpgatewayv1 "go.cadenya.com/mcp-grpc-gateway/gen/grpcmcpgateway/v1"
 	"go.cadenya.com/mcp-grpc-gateway/internal/discovery"
 	"go.cadenya.com/mcp-grpc-gateway/internal/gateway"
 	"go.cadenya.com/mcp-grpc-gateway/internal/mcphttp"
 	"go.cadenya.com/mcp-grpc-gateway/internal/testpb"
 	"go.cadenya.com/mcp-grpc-gateway/internal/toolcache"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
@@ -38,7 +38,13 @@ func TestAnnotatedGRPCServiceIsExposedThroughMCPEndpoint(t *testing.T) {
 	service, err := discovery.LoadService(ctx, grpcClient, "functional.v1.GreeterService")
 	require.NoError(t, err)
 
-	mcpServer := gateway.NewServer(service)
+	mcpServer := gateway.NewServer(gateway.ServerMetadata{
+		Name:         "runtime-gateway",
+		Title:        "Runtime Gateway",
+		Version:      "2.0.0",
+		Instructions: "Use runtime metadata.",
+		WebsiteURL:   "https://example.com/runtime",
+	})
 	require.NoError(t, gateway.RegisterTools(mcpServer, grpcClient, service))
 
 	httpServer := httptest.NewServer(mcphttp.NewHandler(staticProvider{server: mcpServer}, nil))
@@ -55,11 +61,11 @@ func TestAnnotatedGRPCServiceIsExposedThroughMCPEndpoint(t *testing.T) {
 	defer session.Close()
 
 	init := session.InitializeResult()
-	require.Equal(t, "greeter", init.ServerInfo.Name)
-	require.Equal(t, "Greeter Service", init.ServerInfo.Title)
-	require.Equal(t, "1.0.0", init.ServerInfo.Version)
-	require.Equal(t, "https://example.com/greeter", init.ServerInfo.WebsiteURL)
-	require.Equal(t, "Use this server to greet users by name.", init.Instructions)
+	require.Equal(t, "runtime-gateway", init.ServerInfo.Name)
+	require.Equal(t, "Runtime Gateway", init.ServerInfo.Title)
+	require.Equal(t, "2.0.0", init.ServerInfo.Version)
+	require.Equal(t, "https://example.com/runtime", init.ServerInfo.WebsiteURL)
+	require.Equal(t, "Use runtime metadata.", init.Instructions)
 
 	var tools []*mcp.Tool
 	for tool, err := range session.Tools(ctx, nil) {
@@ -106,12 +112,6 @@ func TestLiveGRPCReflectionReturnsToolAnnotations(t *testing.T) {
 	tool := proto.GetExtension(methodOptions, grpcmcpgatewayv1.E_Tool).(*grpcmcpgatewayv1.Tool)
 	require.Equal(t, "greet_user", tool.GetName())
 	require.Equal(t, "Greets a user by name", tool.GetDescription())
-
-	serviceOptions := reflectedServiceOptions(t, resp.GetFileDescriptorResponse().GetFileDescriptorProto(), "functional/v1/greeter.proto", "GreeterService")
-	require.True(t, proto.HasExtension(serviceOptions, grpcmcpgatewayv1.E_Server))
-	server := proto.GetExtension(serviceOptions, grpcmcpgatewayv1.E_Server).(*grpcmcpgatewayv1.Server)
-	require.Equal(t, "greeter", server.GetName())
-	require.Equal(t, "Greeter Service", server.GetTitle())
 }
 
 func TestMCPEndpointKeepsCachedToolsWhenReflectionReloadFails(t *testing.T) {
@@ -350,25 +350,5 @@ func reflectedMethodOptions(t *testing.T, rawFiles [][]byte, filePath string, se
 	}
 
 	t.Fatalf("method %s/%s not found in reflected file %s", serviceName, methodName, filePath)
-	return nil
-}
-
-func reflectedServiceOptions(t *testing.T, rawFiles [][]byte, filePath string, serviceName string) *descriptorpb.ServiceOptions {
-	t.Helper()
-
-	for _, rawFile := range rawFiles {
-		file := &descriptorpb.FileDescriptorProto{}
-		require.NoError(t, proto.Unmarshal(rawFile, file))
-		if file.GetName() != filePath {
-			continue
-		}
-		for _, service := range file.GetService() {
-			if service.GetName() == serviceName {
-				return service.GetOptions()
-			}
-		}
-	}
-
-	t.Fatalf("service %s not found in reflected file %s", serviceName, filePath)
 	return nil
 }

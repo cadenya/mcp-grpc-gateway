@@ -22,6 +22,9 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// Server is deprecated and is not read by the gateway runtime. Configure MCP
+// server metadata with the gateway's --mcp-* flags or MCP_* environment
+// variables instead.
 type Server struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
@@ -292,6 +295,8 @@ var file_grpcmcpgateway_v1_annotations_proto_extTypes = []protoimpl.ExtensionInf
 // Extension fields to descriptorpb.ServiceOptions.
 var (
 	// optional grpcmcpgateway.v1.Server server = 80083;
+	//
+	// Deprecated: Marked as deprecated in grpcmcpgateway/v1/annotations.proto.
 	E_Server = &file_grpcmcpgateway_v1_annotations_proto_extTypes[0]
 )
 
@@ -328,8 +333,8 @@ const file_grpcmcpgateway_v1_annotations_proto_rawDesc = "" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12 \n" +
 	"\vdescription\x18\x02 \x01(\tR\vdescription\")\n" +
 	"\x05Field\x12 \n" +
-	"\vdescription\x18\x01 \x01(\tR\vdescription:T\n" +
-	"\x06server\x12\x1f.google.protobuf.ServiceOptions\x18\xd3\xf1\x04 \x01(\v2\x19.grpcmcpgateway.v1.ServerR\x06server:M\n" +
+	"\vdescription\x18\x01 \x01(\tR\vdescription:X\n" +
+	"\x06server\x12\x1f.google.protobuf.ServiceOptions\x18\xd3\xf1\x04 \x01(\v2\x19.grpcmcpgateway.v1.ServerB\x02\x18\x01R\x06server:M\n" +
 	"\x04tool\x12\x1e.google.protobuf.MethodOptions\x18\xd4\xf1\x04 \x01(\v2\x17.grpcmcpgateway.v1.ToolR\x04tool:O\n" +
 	"\x05field\x12\x1d.google.protobuf.FieldOptions\x18\xd5\xf1\x04 \x01(\v2\x18.grpcmcpgateway.v1.FieldR\x05fieldBHZFgo.cadenya.com/mcp-grpc-gateway/gen/grpcmcpgateway/v1;grpcmcpgatewayv1b\x06proto3"
 

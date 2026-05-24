@@ -7,14 +7,6 @@ import "grpcmcpgateway/v1/annotations.proto";
 option go_package = "go.cadenya.com/mcp-grpc-gateway/internal/testpb;testpb";
 
 service GreeterService {
-  option (grpcmcpgateway.v1.server) = {
-    name: "greeter"
-    title: "Greeter Service"
-    version: "1.0.0"
-    instructions: "Use this server to greet users by name."
-    website_url: "https://example.com/greeter"
-  };
-
   rpc Greet(GreetRequest) returns (GreetResponse) {
     option (grpcmcpgateway.v1.tool) = {
       name: "greet_user"

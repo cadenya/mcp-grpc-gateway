@@ -8,9 +8,9 @@ import (
 	"log/slog"
 	"testing"
 
-	"go.cadenya.com/mcp-grpc-gateway/internal/gateway"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/suite"
+	"go.cadenya.com/mcp-grpc-gateway/internal/gateway"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protodesc"
@@ -171,16 +171,25 @@ func (s *GatewaySuite) TestToolCallInvokesGRPCAndReturnsStructuredContent() {
 	s.Equal("/test.v1.EchoService/Echo", s.conn.calledMethod)
 }
 
-func (s *GatewaySuite) TestNewServerUsesServiceAnnotationForImplementationFields() {
-	server := gateway.NewServer(s.service)
+func (s *GatewaySuite) TestNewServerUsesRuntimeImplementationFields() {
+	server := gateway.NewServer(gateway.ServerMetadata{
+		Name:         "runtime-gateway",
+		Title:        "Runtime Gateway",
+		Version:      "1.2.3",
+		Instructions: "Use the runtime-configured MCP server.",
+		WebsiteURL:   "https://example.com/runtime",
+	})
 	s.Require().NoError(gateway.RegisterTools(server, s.conn, s.service))
 	session := s.connect(server)
 	defer session.Close()
 
 	init := session.InitializeResult()
 	s.Require().NotNil(init)
-	s.Equal("EchoService", init.ServerInfo.Name)
-	s.Equal("dev", init.ServerInfo.Version)
+	s.Equal("runtime-gateway", init.ServerInfo.Name)
+	s.Equal("Runtime Gateway", init.ServerInfo.Title)
+	s.Equal("1.2.3", init.ServerInfo.Version)
+	s.Equal("https://example.com/runtime", init.ServerInfo.WebsiteURL)
+	s.Equal("Use the runtime-configured MCP server.", init.Instructions)
 }
 
 func (s *GatewaySuite) connect(server *mcp.Server) *mcp.ClientSession {

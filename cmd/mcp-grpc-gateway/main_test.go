@@ -2,10 +2,17 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"io"
 	"log/slog"
+	"math/big"
 	"net"
 	"net/http"
+	"os"
 	"testing"
 	"time"
 
@@ -32,6 +39,10 @@ func TestCommandDefaultsAndNormalizesPath(t *testing.T) {
 	require.Equal(t, []string{"test.v1.Service"}, got.services)
 	require.Equal(t, "/mcp", got.path)
 	require.False(t, got.tls)
+	require.Empty(t, got.grpcCAFile)
+	require.Empty(t, got.grpcClientCertFile)
+	require.Empty(t, got.grpcClientKeyFile)
+	require.Empty(t, got.grpcServerName)
 	require.Equal(t, time.Minute, got.reloadInterval)
 	require.Equal(t, "info", got.logLevel)
 	require.Equal(t, "text", got.logFormat)
@@ -91,12 +102,89 @@ func TestCommandParsesMultipleServiceFilters(t *testing.T) {
 }
 
 func TestDialOptionsUseTLSOnlyWhenRequested(t *testing.T) {
-	plain := dialOptions(config{})
-	secure := dialOptions(config{tls: true})
+	plain, err := dialOptions(config{})
+	require.NoError(t, err)
+	secure, err := dialOptions(config{tls: true})
+	require.NoError(t, err)
 
 	require.Len(t, plain, 2)
 	require.Len(t, secure, 2)
 	require.NotEqual(t, plain[0], secure[0])
+}
+
+func TestCommandParsesGRPCTLSConfigFromEnvironment(t *testing.T) {
+	t.Setenv("GRPC_TLS", "true")
+	t.Setenv("GRPC_CA_FILE", "/certs/ca.pem")
+	t.Setenv("GRPC_CLIENT_CERT_FILE", "/certs/client.crt")
+	t.Setenv("GRPC_CLIENT_KEY_FILE", "/certs/client.key")
+	t.Setenv("GRPC_SERVER_NAME", "grpc.internal")
+
+	var got config
+	cmd := newCommand(func(_ context.Context, cfg config) error {
+		got = cfg
+		return nil
+	})
+
+	err := cmd.Run(context.Background(), []string{
+		"mcp-grpc-gateway",
+		"--grpc-host", "localhost:50051",
+	})
+
+	require.NoError(t, err)
+	require.True(t, got.tls)
+	require.Equal(t, "/certs/ca.pem", got.grpcCAFile)
+	require.Equal(t, "/certs/client.crt", got.grpcClientCertFile)
+	require.Equal(t, "/certs/client.key", got.grpcClientKeyFile)
+	require.Equal(t, "grpc.internal", got.grpcServerName)
+}
+
+func TestCommandParsesGRPCTLSConfigFromFlags(t *testing.T) {
+	var got config
+	cmd := newCommand(func(_ context.Context, cfg config) error {
+		got = cfg
+		return nil
+	})
+
+	err := cmd.Run(context.Background(), []string{
+		"mcp-grpc-gateway",
+		"--grpc-host", "localhost:50051",
+		"--grpc-tls",
+		"--grpc-ca-file", "/certs/ca.pem",
+		"--grpc-client-cert-file", "/certs/client.crt",
+		"--grpc-client-key-file", "/certs/client.key",
+		"--grpc-server-name", "grpc.internal",
+	})
+
+	require.NoError(t, err)
+	require.True(t, got.tls)
+	require.Equal(t, "/certs/ca.pem", got.grpcCAFile)
+	require.Equal(t, "/certs/client.crt", got.grpcClientCertFile)
+	require.Equal(t, "/certs/client.key", got.grpcClientKeyFile)
+	require.Equal(t, "grpc.internal", got.grpcServerName)
+}
+
+func TestGRPCTLSConfigRequiresClientCertificatePair(t *testing.T) {
+	_, err := grpcTLSConfig(config{tls: true, grpcClientCertFile: "/certs/client.crt"})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "both --grpc-client-cert-file and --grpc-client-key-file")
+}
+
+func TestGRPCTLSConfigLoadsCustomCAClientCertificateAndServerName(t *testing.T) {
+	caFile, certFile, keyFile := writeTestCertificates(t)
+
+	tlsConfig, err := grpcTLSConfig(config{
+		tls:                true,
+		grpcCAFile:         caFile,
+		grpcClientCertFile: certFile,
+		grpcClientKeyFile:  keyFile,
+		grpcServerName:     "grpc.internal",
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, tlsConfig.RootCAs)
+	require.NotEmpty(t, tlsConfig.RootCAs.Subjects())
+	require.Len(t, tlsConfig.Certificates, 1)
+	require.Equal(t, "grpc.internal", tlsConfig.ServerName)
 }
 
 func TestCommandParsesReloadInterval(t *testing.T) {
@@ -262,4 +350,45 @@ func TestServeHTTPShutsDownWhenContextIsCanceled(t *testing.T) {
 	cancel()
 
 	require.NoError(t, <-errCh)
+}
+
+func writeTestCertificates(t *testing.T) (string, string, string) {
+	t.Helper()
+
+	dir := t.TempDir()
+	caKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	clientKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	caTemplate := &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: "test-ca"},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(time.Hour),
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature,
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+	}
+	caDER, err := x509.CreateCertificate(rand.Reader, caTemplate, caTemplate, &caKey.PublicKey, caKey)
+	require.NoError(t, err)
+
+	clientTemplate := &x509.Certificate{
+		SerialNumber: big.NewInt(2),
+		Subject:      pkix.Name{CommonName: "test-client"},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+	}
+	clientDER, err := x509.CreateCertificate(rand.Reader, clientTemplate, caTemplate, &clientKey.PublicKey, caKey)
+	require.NoError(t, err)
+
+	caFile := dir + "/ca.pem"
+	certFile := dir + "/client.crt"
+	keyFile := dir + "/client.key"
+	require.NoError(t, os.WriteFile(caFile, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: caDER}), 0o600))
+	require.NoError(t, os.WriteFile(certFile, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: clientDER}), 0o600))
+	require.NoError(t, os.WriteFile(keyFile, pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(clientKey)}), 0o600))
+	return caFile, certFile, keyFile
 }

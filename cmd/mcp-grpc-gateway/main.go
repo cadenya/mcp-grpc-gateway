@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -29,6 +31,10 @@ type config struct {
 	services               []string
 	path                   string
 	tls                    bool
+	grpcCAFile             string
+	grpcClientCertFile     string
+	grpcClientKeyFile      string
+	grpcServerName         string
 	reloadInterval         time.Duration
 	logLevel               string
 	logFormat              string
@@ -77,8 +83,30 @@ func newCommand(action func(context.Context, config) error) *cli.Command {
 				Usage: "HTTP path for the MCP endpoint",
 			},
 			&cli.BoolFlag{
-				Name:  "tls",
-				Usage: "connect to gRPC using TLS with system roots",
+				Name:    "grpc-tls",
+				Aliases: []string{"tls"},
+				Usage:   "connect to gRPC using TLS",
+				Sources: cli.EnvVars("GRPC_TLS"),
+			},
+			&cli.StringFlag{
+				Name:    "grpc-ca-file",
+				Usage:   "PEM CA bundle used to verify the gRPC server; uses system roots when empty",
+				Sources: cli.EnvVars("GRPC_CA_FILE"),
+			},
+			&cli.StringFlag{
+				Name:    "grpc-client-cert-file",
+				Usage:   "PEM client certificate for mTLS gRPC connections",
+				Sources: cli.EnvVars("GRPC_CLIENT_CERT_FILE"),
+			},
+			&cli.StringFlag{
+				Name:    "grpc-client-key-file",
+				Usage:   "PEM client private key for mTLS gRPC connections",
+				Sources: cli.EnvVars("GRPC_CLIENT_KEY_FILE"),
+			},
+			&cli.StringFlag{
+				Name:    "grpc-server-name",
+				Usage:   "override the server name used to verify the gRPC TLS certificate",
+				Sources: cli.EnvVars("GRPC_SERVER_NAME"),
 			},
 			&cli.DurationFlag{
 				Name:  "reload-interval",
@@ -155,7 +183,11 @@ func configFromCommand(cmd *cli.Command) (config, error) {
 		grpcHost:               cmd.String("grpc-host"),
 		services:               cmd.StringSlice("service"),
 		path:                   cmd.String("path"),
-		tls:                    cmd.Bool("tls"),
+		tls:                    cmd.Bool("grpc-tls"),
+		grpcCAFile:             cmd.String("grpc-ca-file"),
+		grpcClientCertFile:     cmd.String("grpc-client-cert-file"),
+		grpcClientKeyFile:      cmd.String("grpc-client-key-file"),
+		grpcServerName:         cmd.String("grpc-server-name"),
 		reloadInterval:         cmd.Duration("reload-interval"),
 		logLevel:               cmd.String("log-level"),
 		logFormat:              cmd.String("log-format"),
@@ -201,7 +233,11 @@ func run(ctx context.Context, cfg config) error {
 	}()
 	slog.SetDefault(logger)
 
-	conn, err := grpc.NewClient(cfg.grpcHost, dialOptions(cfg)...)
+	dialOpts, err := dialOptions(cfg)
+	if err != nil {
+		return err
+	}
+	conn, err := grpc.NewClient(cfg.grpcHost, dialOpts...)
 	if err != nil {
 		return fmt.Errorf("create grpc client: %w", err)
 	}
@@ -274,15 +310,50 @@ func serveHTTP(ctx context.Context, server *http.Server, listener net.Listener, 
 	}
 }
 
-func dialOptions(cfg config) []grpc.DialOption {
+func dialOptions(cfg config) ([]grpc.DialOption, error) {
+	statsHandler := grpc.WithStatsHandler(otelgrpc.NewClientHandler())
 	if cfg.tls {
-		return []grpc.DialOption{
-			grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(nil, "")),
-			grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
+		tlsConfig, err := grpcTLSConfig(cfg)
+		if err != nil {
+			return nil, err
 		}
+		return []grpc.DialOption{
+			grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+			statsHandler,
+		}, nil
 	}
 	return []grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
+		statsHandler,
+	}, nil
+}
+
+func grpcTLSConfig(cfg config) (*tls.Config, error) {
+	if (cfg.grpcClientCertFile == "") != (cfg.grpcClientKeyFile == "") {
+		return nil, errors.New("both --grpc-client-cert-file and --grpc-client-key-file are required for mTLS")
 	}
+
+	tlsConfig := &tls.Config{
+		MinVersion: tls.VersionTLS12,
+		ServerName: cfg.grpcServerName,
+	}
+	if cfg.grpcCAFile != "" {
+		caPEM, err := os.ReadFile(cfg.grpcCAFile)
+		if err != nil {
+			return nil, fmt.Errorf("read --grpc-ca-file: %w", err)
+		}
+		roots := x509.NewCertPool()
+		if !roots.AppendCertsFromPEM(caPEM) {
+			return nil, fmt.Errorf("parse --grpc-ca-file: no PEM certificates found")
+		}
+		tlsConfig.RootCAs = roots
+	}
+	if cfg.grpcClientCertFile != "" {
+		cert, err := tls.LoadX509KeyPair(cfg.grpcClientCertFile, cfg.grpcClientKeyFile)
+		if err != nil {
+			return nil, fmt.Errorf("load gRPC client certificate pair: %w", err)
+		}
+		tlsConfig.Certificates = []tls.Certificate{cert}
+	}
+	return tlsConfig, nil
 }

@@ -96,6 +96,47 @@ mcp-grpc-gateway \
 
 Tool names must be unique across all loaded services. If two RPCs produce the same MCP tool name, the first one is kept and the gateway emits a warning log with the colliding service name and tool name.
 
+## gRPC Client TLS
+
+The gateway connects to downstream gRPC services without TLS by default. Enable TLS with `--grpc-tls`; the existing `--tls` flag is kept as an alias.
+
+```bash
+mcp-grpc-gateway \
+  --grpc-host your-grpc-service:50051 \
+  --grpc-tls
+```
+
+By default TLS uses the system root CAs. Provide a custom CA bundle when your gRPC service uses a private CA:
+
+```bash
+mcp-grpc-gateway \
+  --grpc-host your-grpc-service:50051 \
+  --grpc-tls \
+  --grpc-ca-file /etc/certs/ca.pem
+```
+
+For mTLS, provide both the client certificate and private key:
+
+```bash
+mcp-grpc-gateway \
+  --grpc-host your-grpc-service:50051 \
+  --grpc-tls \
+  --grpc-ca-file /etc/certs/ca.pem \
+  --grpc-client-cert-file /etc/certs/client.crt \
+  --grpc-client-key-file /etc/certs/client.key
+```
+
+Use `--grpc-server-name` when the certificate DNS name differs from `--grpc-host`.
+
+```bash
+mcp-grpc-gateway \
+  --grpc-host 10.0.0.12:50051 \
+  --grpc-tls \
+  --grpc-server-name api.internal.example.com
+```
+
+Each TLS flag also has an environment variable: `GRPC_TLS`, `GRPC_CA_FILE`, `GRPC_CLIENT_CERT_FILE`, `GRPC_CLIENT_KEY_FILE`, and `GRPC_SERVER_NAME`.
+
 ## MCP Server Metadata
 
 MCP server metadata belongs to the gateway process, not the reflected gRPC services. A single MCP server can aggregate tools from multiple gRPC services, so service-level protobuf annotations are not used to set the MCP server name, title, version, instructions, or website URL.

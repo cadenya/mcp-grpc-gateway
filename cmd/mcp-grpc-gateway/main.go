@@ -36,6 +36,7 @@ type config struct {
 	grpcClientKeyFile      string
 	grpcServerName         string
 	reloadInterval         time.Duration
+	toolCallTimeout        time.Duration
 	logLevel               string
 	logFormat              string
 	otelEndpoint           string
@@ -66,7 +67,7 @@ func newCommand(action func(context.Context, config) error) *cli.Command {
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:  "addr",
-				Value: "0.0.0.0:8080",
+				Value: "127.0.0.1:8080",
 				Usage: "HTTP listen address",
 			},
 			&cli.StringFlag{
@@ -112,6 +113,12 @@ func newCommand(action func(context.Context, config) error) *cli.Command {
 				Name:  "reload-interval",
 				Value: time.Minute,
 				Usage: "interval for reloading reflected gRPC tools; set 0 to disable background reloads",
+			},
+			&cli.DurationFlag{
+				Name:    "tool-call-timeout",
+				Value:   30 * time.Second,
+				Usage:   "deadline for downstream gRPC tool calls; set 0 to disable",
+				Sources: cli.EnvVars("TOOL_CALL_TIMEOUT"),
 			},
 			&cli.StringFlag{
 				Name:  "log-level",
@@ -189,6 +196,7 @@ func configFromCommand(cmd *cli.Command) (config, error) {
 		grpcClientKeyFile:      cmd.String("grpc-client-key-file"),
 		grpcServerName:         cmd.String("grpc-server-name"),
 		reloadInterval:         cmd.Duration("reload-interval"),
+		toolCallTimeout:        cmd.Duration("tool-call-timeout"),
 		logLevel:               cmd.String("log-level"),
 		logFormat:              cmd.String("log-format"),
 		otelEndpoint:           cmd.String("otel-endpoint"),
@@ -255,6 +263,7 @@ func run(ctx context.Context, cfg config) error {
 		},
 		Logger:                 logger,
 		RequireToolAnnotations: cfg.requireToolAnnotations,
+		ToolCallTimeout:        cfg.toolCallTimeout,
 	})
 	if err := cache.Reload(ctx); err != nil {
 		return err

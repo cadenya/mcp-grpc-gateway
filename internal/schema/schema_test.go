@@ -3,11 +3,16 @@ package schema_test
 import (
 	"testing"
 
-	gatewayschema "go.cadenya.com/mcp-grpc-gateway/internal/schema"
 	"github.com/stretchr/testify/suite"
+	gatewayschema "go.cadenya.com/mcp-grpc-gateway/internal/schema"
 	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/descriptorpb"
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
+	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 type ConverterSuite struct {
@@ -121,6 +126,64 @@ func (s *ConverterSuite) TestBuildsMapAndOneofFields() {
 	}, props["attributes"])
 	s.Equal(map[string]any{"type": "string"}, props["query"])
 	s.Equal(map[string]any{"type": "integer", "format": "int32"}, props["page"])
+}
+
+func (s *ConverterSuite) TestBuildsProtoJSONSchemasForWellKnownTypes() {
+	optional := descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL
+	repeated := descriptorpb.FieldDescriptorProto_LABEL_REPEATED
+	typeMessage := descriptorpb.FieldDescriptorProto_TYPE_MESSAGE
+
+	files, err := protodesc.NewFiles(&descriptorpb.FileDescriptorSet{File: []*descriptorpb.FileDescriptorProto{
+		protodesc.ToFileDescriptorProto(timestamppb.File_google_protobuf_timestamp_proto),
+		protodesc.ToFileDescriptorProto(durationpb.File_google_protobuf_duration_proto),
+		protodesc.ToFileDescriptorProto(fieldmaskpb.File_google_protobuf_field_mask_proto),
+		protodesc.ToFileDescriptorProto(wrapperspb.File_google_protobuf_wrappers_proto),
+		protodesc.ToFileDescriptorProto(structpb.File_google_protobuf_struct_proto),
+		{
+			Name:    ptr("test/v1/wkt.proto"),
+			Package: ptr("test.v1"),
+			Syntax:  ptr("proto3"),
+			Dependency: []string{
+				"google/protobuf/timestamp.proto",
+				"google/protobuf/duration.proto",
+				"google/protobuf/field_mask.proto",
+				"google/protobuf/wrappers.proto",
+				"google/protobuf/struct.proto",
+			},
+			MessageType: []*descriptorpb.DescriptorProto{{
+				Name: ptr("WellKnownRequest"),
+				Field: []*descriptorpb.FieldDescriptorProto{
+					{Name: ptr("created_at"), JsonName: ptr("createdAt"), Number: ptr[int32](1), Label: &optional, Type: &typeMessage, TypeName: ptr(".google.protobuf.Timestamp")},
+					{Name: ptr("ttl"), JsonName: ptr("ttl"), Number: ptr[int32](2), Label: &optional, Type: &typeMessage, TypeName: ptr(".google.protobuf.Duration")},
+					{Name: ptr("mask"), JsonName: ptr("mask"), Number: ptr[int32](3), Label: &optional, Type: &typeMessage, TypeName: ptr(".google.protobuf.FieldMask")},
+					{Name: ptr("nickname"), JsonName: ptr("nickname"), Number: ptr[int32](4), Label: &optional, Type: &typeMessage, TypeName: ptr(".google.protobuf.StringValue")},
+					{Name: ptr("payload"), JsonName: ptr("payload"), Number: ptr[int32](5), Label: &optional, Type: &typeMessage, TypeName: ptr(".google.protobuf.Struct")},
+					{Name: ptr("anything"), JsonName: ptr("anything"), Number: ptr[int32](6), Label: &optional, Type: &typeMessage, TypeName: ptr(".google.protobuf.Value")},
+					{Name: ptr("items"), JsonName: ptr("items"), Number: ptr[int32](7), Label: &optional, Type: &typeMessage, TypeName: ptr(".google.protobuf.ListValue")},
+					{Name: ptr("timestamps"), JsonName: ptr("timestamps"), Number: ptr[int32](8), Label: &repeated, Type: &typeMessage, TypeName: ptr(".google.protobuf.Timestamp")},
+				},
+			}},
+		},
+	}})
+	s.Require().NoError(err)
+	desc, err := files.FindDescriptorByName("test.v1.WellKnownRequest")
+	s.Require().NoError(err)
+
+	got, err := gatewayschema.ForMessage(desc.(protoreflect.MessageDescriptor))
+
+	s.Require().NoError(err)
+	props := got["properties"].(map[string]any)
+	s.Equal(map[string]any{"type": "string", "format": "date-time"}, props["createdAt"])
+	s.Equal(map[string]any{"type": "string"}, props["ttl"])
+	s.Equal(map[string]any{"type": "string"}, props["mask"])
+	s.Equal(map[string]any{"type": "string"}, props["nickname"])
+	s.Equal(map[string]any{"type": "object", "additionalProperties": true}, props["payload"])
+	s.Equal(map[string]any{}, props["anything"])
+	s.Equal(map[string]any{"type": "array", "items": map[string]any{}}, props["items"])
+	s.Equal(map[string]any{
+		"type":  "array",
+		"items": map[string]any{"type": "string", "format": "date-time"},
+	}, props["timestamps"])
 }
 
 func ptr[T any](v T) *T {

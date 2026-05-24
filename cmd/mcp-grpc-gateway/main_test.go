@@ -34,7 +34,7 @@ func TestCommandDefaultsAndNormalizesPath(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.Equal(t, "0.0.0.0:8080", got.addr)
+	require.Equal(t, "127.0.0.1:8080", got.addr)
 	require.Equal(t, "localhost:50051", got.grpcHost)
 	require.Equal(t, []string{"test.v1.Service"}, got.services)
 	require.Equal(t, "/mcp", got.path)
@@ -44,6 +44,7 @@ func TestCommandDefaultsAndNormalizesPath(t *testing.T) {
 	require.Empty(t, got.grpcClientKeyFile)
 	require.Empty(t, got.grpcServerName)
 	require.Equal(t, time.Minute, got.reloadInterval)
+	require.Equal(t, 30*time.Second, got.toolCallTimeout)
 	require.Equal(t, "info", got.logLevel)
 	require.Equal(t, "text", got.logFormat)
 	require.Empty(t, got.otelEndpoint)
@@ -54,6 +55,23 @@ func TestCommandDefaultsAndNormalizesPath(t *testing.T) {
 	require.Equal(t, "dev", got.mcpVersion)
 	require.Empty(t, got.mcpInstructions)
 	require.Empty(t, got.mcpWebsiteURL)
+}
+
+func TestCommandParsesToolCallTimeout(t *testing.T) {
+	var got config
+	cmd := newCommand(func(_ context.Context, cfg config) error {
+		got = cfg
+		return nil
+	})
+
+	err := cmd.Run(context.Background(), []string{
+		"mcp-grpc-gateway",
+		"--grpc-host", "localhost:50051",
+		"--tool-call-timeout", "5s",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 5*time.Second, got.toolCallTimeout)
 }
 
 func TestCommandRequiresGRPCHostAndService(t *testing.T) {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/suite"
@@ -128,6 +129,23 @@ func (s *GatewaySuite) TestRegistersToolsFromMultipleServices() {
 	s.ElementsMatch([]string{"Echo", "Ping"}, names)
 }
 
+func (s *GatewaySuite) TestAppliesServiceToolPrefixToToolNames() {
+	server := mcp.NewServer(&mcp.Implementation{Name: "gateway", Version: "test"}, nil)
+	seen := map[string]string{}
+
+	s.Require().NoError(gateway.RegisterTools(server, s.conn, s.service, gateway.WithRegisteredToolNames(seen), gateway.WithServiceToolPrefix("echo_")))
+	s.Require().NoError(gateway.RegisterTools(server, s.conn, s.collide, gateway.WithRegisteredToolNames(seen), gateway.WithServiceToolPrefix("collision_")))
+	session := s.connect(server)
+	defer session.Close()
+
+	var names []string
+	for tool, err := range session.Tools(context.Background(), nil) {
+		s.Require().NoError(err)
+		names = append(names, tool.Name)
+	}
+	s.ElementsMatch([]string{"echo_Echo", "collision_Echo"}, names)
+}
+
 func (s *GatewaySuite) TestSkipsToolNameCollisionsAndWarns() {
 	var logs bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
@@ -149,6 +167,38 @@ func (s *GatewaySuite) TestSkipsToolNameCollisionsAndWarns() {
 	s.Contains(logs.String(), "tool name collision")
 	s.Contains(logs.String(), "grpc_service=test.v1.CollisionService")
 	s.Contains(logs.String(), "tool_name=Echo")
+}
+
+func (s *GatewaySuite) TestToolCallTimeoutAddsDeadlineToInvocationContext() {
+	server := mcp.NewServer(&mcp.Implementation{Name: "gateway", Version: "test"}, nil)
+	s.Require().NoError(gateway.RegisterTools(server, s.conn, s.service, gateway.WithTimeout(5*time.Second)))
+	session := s.connect(server)
+	defer session.Close()
+
+	got, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "Echo",
+		Arguments: map[string]any{"id": "abc"},
+	})
+
+	s.Require().NoError(err)
+	s.False(got.IsError)
+	s.True(s.conn.hadDeadline)
+}
+
+func (s *GatewaySuite) TestToolCallTimeoutReturnsToolErrorWhenDeadlineExpires() {
+	s.conn.waitForContext = true
+	server := mcp.NewServer(&mcp.Implementation{Name: "gateway", Version: "test"}, nil)
+	s.Require().NoError(gateway.RegisterTools(server, s.conn, s.service, gateway.WithTimeout(time.Nanosecond)))
+	session := s.connect(server)
+	defer session.Close()
+
+	got, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "Echo",
+		Arguments: map[string]any{"id": "abc"},
+	})
+
+	s.Require().NoError(err)
+	s.True(got.IsError)
 }
 
 func (s *GatewaySuite) TestToolCallInvokesGRPCAndReturnsStructuredContent() {
@@ -204,12 +254,19 @@ func (s *GatewaySuite) connect(server *mcp.Server) *mcp.ClientSession {
 }
 
 type fakeConn struct {
-	method       protoreflect.MethodDescriptor
-	calledMethod string
+	method         protoreflect.MethodDescriptor
+	calledMethod   string
+	hadDeadline    bool
+	waitForContext bool
 }
 
-func (f *fakeConn) Invoke(_ context.Context, method string, args any, reply any, _ ...grpc.CallOption) error {
+func (f *fakeConn) Invoke(ctx context.Context, method string, args any, reply any, _ ...grpc.CallOption) error {
 	f.calledMethod = method
+	_, f.hadDeadline = ctx.Deadline()
+	if f.waitForContext {
+		<-ctx.Done()
+		return ctx.Err()
+	}
 	req := args.(proto.Message).ProtoReflect()
 	resp := reply.(*dynamicpb.Message)
 	resp.Set(f.method.Output().Fields().ByName("ok"), protoreflect.ValueOfBool(true))

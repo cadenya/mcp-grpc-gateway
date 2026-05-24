@@ -8,19 +8,46 @@ MCP gRPC Gateway exposes existing gRPC services as stateless MCP tools over HTTP
 
 The gateway is designed for teams that already describe service contracts in protobuf and want MCP support without hand-writing a parallel tool server. Protobuf annotations can provide tool names and tool descriptions, while reflection lets the gateway reload tool definitions as services change. In practice, your gRPC service remains the source of truth and the gateway can pick up newly deployed tools without a gateway redeploy.
 
-## Quick Start
+## Run The Gateway
 
-To run this as a binary, you can run:
+MCP gRPC Gateway runs as a small HTTP service in front of a reflected gRPC server. Point it at a gRPC host that has server reflection enabled:
 
 ```bash
-mcp-grpc-gateway --addr 0.0.0.0:8080 --grpc-host your-grpc-service:50051 --path "/mcp"
+mcp-grpc-gateway --grpc-host your-grpc-service:50051
 ```
 
-This will start a server that listens on port 8080, reads the reflected RPC definitions at `your-grpc-service:50051`, and hosts your MCP endpoint at `/mcp`.
+By default, the gateway listens on `127.0.0.1:8080` and exposes the MCP endpoint at `/mcp`.
 
-## Local CLI
+```text
+http://127.0.0.1:8080/mcp
+```
 
-If, for whatever reason, you want to run this locally, you can use `go install` from the repository root to install it:
+To expose it from a container, VM, or Kubernetes pod, bind to all interfaces explicitly:
+
+```bash
+mcp-grpc-gateway \
+  --addr 0.0.0.0:8080 \
+  --grpc-host your-grpc-service:50051
+```
+
+You can limit which reflected services become MCP tools with `--service`, and you can require explicit protobuf tool annotations with `--require-tool-annotations`:
+
+```bash
+mcp-grpc-gateway \
+  --grpc-host your-grpc-service:50051 \
+  --service yourapp.v1.ObjectivesService \
+  --require-tool-annotations
+```
+
+## Install
+
+Install the gateway from source with Go:
+
+```bash
+go install go.cadenya.com/mcp-grpc-gateway/cmd/mcp-grpc-gateway@latest
+```
+
+For local development from a checked-out repository:
 
 ```bash
 go install ./cmd/mcp-grpc-gateway
@@ -28,10 +55,11 @@ go install ./cmd/mcp-grpc-gateway
 
 ## Docker
 
-The project publishes a distroless, non-root Docker image to Docker Hub:
+Run the published Docker image:
 
 ```bash
 docker run --rm -p 8080:8080 cadenyaagents/mcp-grpc-gateway:latest \
+  --addr 0.0.0.0:8080 \
   --grpc-host your-grpc-service:50051
 ```
 
@@ -220,14 +248,20 @@ import "grpcmcpgateway/v1/annotations.proto";
 
 ```proto
 service ObjectivesService {
+  option (grpcmcpgateway.v1.service) = {
+    tool_prefix: "objectives_"
+  };
+
   rpc ListObjectives(ListObjectivesRequest) returns (ListObjectivesResponse) {
     option (grpcmcpgateway.v1.tool) = {
-      name: "list_objectives"
+      name: "list"
       description: "Lists objectives for the current workspace."
     };
   }
 }
 ```
+
+Service-level `tool_prefix` is prepended to every tool name in that service. In the example above, the MCP tool is exposed as `objectives_list`. This is useful when one gateway aggregates multiple services that might otherwise use the same tool names.
 
 ## Tool Snapshot Reloads
 
@@ -244,6 +278,18 @@ You can disable background reloads by setting the interval to `0`:
 ```bash
 mcp-grpc-gateway --grpc-host your-grpc-service:50051 --reload-interval 0
 ```
+
+## Tool Call Timeouts
+
+Downstream gRPC tool calls have a 30 second deadline by default. Configure it with `--tool-call-timeout` or `TOOL_CALL_TIMEOUT`.
+
+```bash
+mcp-grpc-gateway \
+  --grpc-host your-grpc-service:50051 \
+  --tool-call-timeout 10s
+```
+
+Set the timeout to `0` to disable the gateway-level deadline.
 
 ## Logging
 

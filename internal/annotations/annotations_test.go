@@ -3,9 +3,9 @@ package annotations_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/suite"
 	grpcmcpgatewayv1 "go.cadenya.com/mcp-grpc-gateway/gen/grpcmcpgateway/v1"
 	"go.cadenya.com/mcp-grpc-gateway/internal/annotations"
-	"github.com/stretchr/testify/suite"
 	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protodesc"
@@ -83,6 +83,12 @@ func (s *MetadataSuite) SetupSuite() {
 				},
 			},
 			{
+				Name: ptr("Service"),
+				Field: []*descriptorpb.FieldDescriptorProto{
+					{Name: ptr("tool_prefix"), JsonName: ptr("toolPrefix"), Number: ptr[int32](1), Label: &optional, Type: &typeString},
+				},
+			},
+			{
 				Name: ptr("Tool"),
 				Field: []*descriptorpb.FieldDescriptorProto{
 					{Name: ptr("name"), JsonName: ptr("name"), Number: ptr[int32](1), Label: &optional, Type: &typeString},
@@ -99,6 +105,15 @@ func (s *MetadataSuite) SetupSuite() {
 				TypeName: ptr(".grpcmcpgateway.v1.Server"),
 				Extendee: ptr(".google.protobuf.ServiceOptions"),
 				JsonName: ptr("server"),
+			},
+			{
+				Name:     ptr("service"),
+				Number:   ptr(grpcmcpgatewayv1.ServiceExtensionNumber),
+				Label:    &optional,
+				Type:     &typeMessage,
+				TypeName: ptr(".grpcmcpgateway.v1.Service"),
+				Extendee: ptr(".google.protobuf.ServiceOptions"),
+				JsonName: ptr("service"),
 			},
 			{
 				Name:     ptr("tool"),
@@ -124,7 +139,14 @@ func (s *MetadataSuite) SetupSuite() {
 	s.Require().NoError(err)
 	serverUnknown := protowire.AppendTag(nil, protowire.Number(serverExt.Number()), protowire.BytesType)
 	serverUnknown = protowire.AppendBytes(serverUnknown, serverBytes)
-	fdProto.Service[0].Options.ProtoReflect().SetUnknown(serverUnknown)
+	serviceExt := toolFile.Extensions().ByName("service")
+	serviceOptions := dynamicpb.NewMessage(serviceExt.Message())
+	serviceOptions.Set(serviceExt.Message().Fields().ByName("tool_prefix"), protoreflect.ValueOfString("objectives_"))
+	serviceBytes, err := proto.Marshal(serviceOptions)
+	s.Require().NoError(err)
+	serviceUnknown := protowire.AppendTag(serverUnknown, protowire.Number(serviceExt.Number()), protowire.BytesType)
+	serviceUnknown = protowire.AppendBytes(serviceUnknown, serviceBytes)
+	fdProto.Service[0].Options.ProtoReflect().SetUnknown(serviceUnknown)
 
 	ext := toolFile.Extensions().ByName("tool")
 	tool := dynamicpb.NewMessage(ext.Message())
@@ -175,6 +197,14 @@ func (s *MetadataSuite) TestReadsServerAnnotationWhenPresent() {
 	s.Equal("1.2.3", got.Version)
 	s.Equal("Use these tools to inspect objectives.", got.Instructions)
 	s.Equal("https://example.com/objectives", got.WebsiteURL)
+}
+
+func (s *MetadataSuite) TestReadsServiceToolPrefixWhenPresent() {
+	service := s.file.Services().ByName("Service")
+
+	got := annotations.ForService(service)
+
+	s.Equal("objectives_", got.ToolPrefix)
 }
 
 func ptr[T any](v T) *T {

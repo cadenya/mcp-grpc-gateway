@@ -32,6 +32,7 @@ type Options struct {
 	Logger                 *slog.Logger
 	Tracer                 trace.Tracer
 	RequireToolAnnotations bool
+	ToolCallTimeout        time.Duration
 }
 
 type Cache struct {
@@ -44,6 +45,7 @@ type Cache struct {
 	tracer                 trace.Tracer
 	server                 ServerMetadata
 	requireToolAnnotations bool
+	toolCallTimeout        time.Duration
 	current                atomic.Pointer[mcp.Server]
 	version                atomic.Uint64
 }
@@ -73,6 +75,7 @@ func New(opts Options) *Cache {
 		tracer:                 tracer,
 		server:                 opts.Server,
 		requireToolAnnotations: opts.RequireToolAnnotations,
+		toolCallTimeout:        opts.ToolCallTimeout,
 	}
 }
 
@@ -123,6 +126,9 @@ func (c *Cache) Reload(ctx context.Context) error {
 	registerOpts := []gateway.RegisterOption{}
 	if c.requireToolAnnotations {
 		registerOpts = append(registerOpts, gateway.WithRequireToolAnnotations(true))
+	}
+	if c.toolCallTimeout > 0 {
+		registerOpts = append(registerOpts, gateway.WithTimeout(c.toolCallTimeout))
 	}
 	registered := map[string]string{}
 	registerOpts = append(registerOpts, gateway.WithRegisteredToolNames(registered), gateway.WithLogger(c.logger))

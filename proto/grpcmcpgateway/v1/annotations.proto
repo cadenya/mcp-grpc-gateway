@@ -29,12 +29,18 @@ message Tool {
   string description = 2;
 }
 
+// Service configures how a reflected gRPC service is exposed as MCP tools.
+message Service {
+  string tool_prefix = 1;
+}
+
 message Field {
   string description = 1;
 }
 
 extend google.protobuf.ServiceOptions {
   Server server = 80083 [deprecated = true];
+  Service service = 80086;
 }
 
 extend google.protobuf.MethodOptions {

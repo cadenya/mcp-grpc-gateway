@@ -19,6 +19,10 @@ var serverExtensionNames = []protoreflect.FullName{
 	"grpcmcpgateway.v1.server",
 }
 
+var serviceExtensionNames = []protoreflect.FullName{
+	"grpcmcpgateway.v1.service",
+}
+
 type ToolMetadata struct {
 	Name        string
 	Description string
@@ -31,6 +35,7 @@ type ServerMetadata struct {
 	Version      string
 	Instructions string
 	WebsiteURL   string
+	ToolPrefix   string
 }
 
 func ForService(service protoreflect.ServiceDescriptor) ServerMetadata {
@@ -39,6 +44,23 @@ func ForService(service protoreflect.ServiceDescriptor) ServerMetadata {
 		return meta
 	}
 	options := service.Options().(*descriptorpb.ServiceOptions)
+
+	if serviceMeta, ok := fromRegisteredServiceExtension(meta, options); ok {
+		meta = serviceMeta
+	}
+	if ext := findExtension(service.ParentFile(), serviceExtensionNames); ext != nil {
+		extType := dynamicpb.NewExtensionType(ext)
+		if !proto.HasExtension(options, extType) {
+			msg := dynamicpb.NewMessage(ext.Message())
+			if unmarshalUnknownExtension(options.ProtoReflect().GetUnknown(), ext, msg) {
+				meta = applyServiceMessage(meta, msg)
+			}
+		} else if value := proto.GetExtension(options, extType); value != nil {
+			if protoMsg, ok := value.(proto.Message); ok && protoMsg != nil {
+				meta = applyServiceMessage(meta, protoMsg.ProtoReflect())
+			}
+		}
+	}
 
 	if meta, ok := fromRegisteredServerExtension(meta, options); ok {
 		return meta
@@ -122,6 +144,22 @@ func fromRegisteredServerExtension(meta ServerMetadata, options *descriptorpb.Se
 	return meta, false
 }
 
+func fromRegisteredServiceExtension(meta ServerMetadata, options *descriptorpb.ServiceOptions) (ServerMetadata, bool) {
+	for _, name := range serviceExtensionNames {
+		extType, err := protoregistry.GlobalTypes.FindExtensionByName(name)
+		if err != nil || !proto.HasExtension(options, extType) {
+			continue
+		}
+		value := proto.GetExtension(options, extType)
+		protoMsg, ok := value.(proto.Message)
+		if !ok || protoMsg == nil {
+			continue
+		}
+		return applyServiceMessage(meta, protoMsg.ProtoReflect()), true
+	}
+	return meta, false
+}
+
 func fromRegisteredExtension(meta ToolMetadata, options *descriptorpb.MethodOptions) (ToolMetadata, bool) {
 	for _, name := range toolExtensionNames {
 		extType, err := protoregistry.GlobalTypes.FindExtensionByName(name)
@@ -165,6 +203,14 @@ func applyServerMessage(meta ServerMetadata, msg protoreflect.Message) ServerMet
 	}
 	if websiteURL := stringField(msg, fields.ByName("website_url")); websiteURL != "" {
 		meta.WebsiteURL = websiteURL
+	}
+	return meta
+}
+
+func applyServiceMessage(meta ServerMetadata, msg protoreflect.Message) ServerMetadata {
+	fields := msg.Descriptor().Fields()
+	if toolPrefix := stringField(msg, fields.ByName("tool_prefix")); toolPrefix != "" {
+		meta.ToolPrefix = toolPrefix
 	}
 	return meta
 }

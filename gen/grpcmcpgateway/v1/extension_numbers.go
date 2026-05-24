@@ -11,3 +11,7 @@ const ToolExtensionNumber int32 = 80084
 // FieldExtensionNumber is this project's custom extension number for
 // grpcmcpgateway.v1.field on google.protobuf.FieldOptions.
 const FieldExtensionNumber int32 = 80085
+
+// ServiceExtensionNumber is this project's custom extension number for
+// grpcmcpgateway.v1.service on google.protobuf.ServiceOptions.
+const ServiceExtensionNumber int32 = 80086

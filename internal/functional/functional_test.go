@@ -1,6 +1,7 @@
 package functional_test
 
 import (
+	"bytes"
 	"context"
 	"net"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	grpcmcpgatewayv1 "cadenya.com/mcp-grpc-gateway/gen/grpcmcpgateway/v1"
 	"cadenya.com/mcp-grpc-gateway/internal/discovery"
 	"cadenya.com/mcp-grpc-gateway/internal/gateway"
+	"cadenya.com/mcp-grpc-gateway/internal/mcphttp"
 	"cadenya.com/mcp-grpc-gateway/internal/testpb"
 	"cadenya.com/mcp-grpc-gateway/internal/toolcache"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -38,10 +40,9 @@ func TestAnnotatedGRPCServiceIsExposedThroughMCPEndpoint(t *testing.T) {
 	mcpServer := gateway.NewServer(service)
 	require.NoError(t, gateway.RegisterTools(mcpServer, grpcClient, service))
 
-	httpServer := httptest.NewServer(mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
-		return mcpServer
-	}, &mcp.StreamableHTTPOptions{JSONResponse: true}))
+	httpServer := httptest.NewServer(mcphttp.NewHandler(staticProvider{server: mcpServer}, nil))
 	defer httpServer.Close()
+	assertStatelessHTTPInitialize(t, httpServer)
 
 	mcpClient := mcp.NewClient(&mcp.Implementation{Name: "functional-client", Version: "test"}, nil)
 	session, err := mcpClient.Connect(ctx, &mcp.StreamableClientTransport{
@@ -129,9 +130,7 @@ func TestMCPEndpointKeepsCachedToolsWhenReflectionReloadFails(t *testing.T) {
 	initial := cache.Current()
 	require.NotNil(t, initial)
 
-	httpServer := httptest.NewServer(mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
-		return cache.Current()
-	}, &mcp.StreamableHTTPOptions{JSONResponse: true}))
+	httpServer := httptest.NewServer(mcphttp.NewHandler(cache, nil))
 	defer httpServer.Close()
 
 	cache.SetLoader(func(context.Context, grpc.ClientConnInterface, string) (protoreflect.ServiceDescriptor, error) {
@@ -209,9 +208,7 @@ func startGreeterGRPCServer(t *testing.T) (string, func()) {
 func connectHTTPMCP(t *testing.T, cache *toolcache.Cache) *mcp.ClientSession {
 	t.Helper()
 
-	httpServer := httptest.NewServer(mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
-		return cache.Current()
-	}, &mcp.StreamableHTTPOptions{JSONResponse: true}))
+	httpServer := httptest.NewServer(mcphttp.NewHandler(cache, nil))
 	t.Cleanup(httpServer.Close)
 
 	client := mcp.NewClient(&mcp.Implementation{Name: "functional-client", Version: "test"}, nil)
@@ -224,8 +221,34 @@ func connectHTTPMCP(t *testing.T, cache *toolcache.Cache) *mcp.ClientSession {
 	return session
 }
 
+func assertStatelessHTTPInitialize(t *testing.T, httpServer *httptest.Server) {
+	t.Helper()
+
+	body := bytes.NewBufferString(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"functional-client","version":"test"}}}`)
+	req, err := http.NewRequest(http.MethodPost, httpServer.URL, body)
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json, text/event-stream")
+
+	resp, err := httpServer.Client().Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Contains(t, resp.Header.Get("Content-Type"), "application/json")
+	require.Empty(t, resp.Header.Get("Mcp-Session-Id"))
+}
+
 type greeterServer struct {
 	testpb.UnimplementedGreeterServiceServer
+}
+
+type staticProvider struct {
+	server *mcp.Server
+}
+
+func (p staticProvider) Current() *mcp.Server {
+	return p.server
 }
 
 func (greeterServer) Greet(_ context.Context, req *testpb.GreetRequest) (*testpb.GreetResponse, error) {

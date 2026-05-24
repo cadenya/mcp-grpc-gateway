@@ -14,6 +14,12 @@ mcp-grpc-gateway --addr 0.0.0.0:8080 --grpc-host your-grpc-service:50051 --servi
 
 This will start a server that listens on port 8080, reads the RPC definitions at `your-grpc-service:50051`, and hosts your MCP endpoint at `/mcp`.
 
+## MCP Transport
+
+This gateway only supports stateless MCP over HTTP. It mounts the MCP Go SDK's Streamable HTTP transport with stateless JSON responses, so each request is handled independently and the gateway does not issue or require `Mcp-Session-Id` headers.
+
+The endpoint is intended for HTTP `POST` requests with JSON responses. It does not expose stdio, stateful SSE sessions, resumable streams, or event-store backed session recovery.
+
 ## Annotations
 
 By default your RPC definitions in your gRPC endpoint will be exposed 1:1 for RPC names as tools. You can override this behavior, add tool descriptions for LLMs, and configure MCP server metadata with annotations.

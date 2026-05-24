@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
+	"cadenya.com/mcp-grpc-gateway/internal/mcphttp"
 	"cadenya.com/mcp-grpc-gateway/internal/telemetry"
 	"cadenya.com/mcp-grpc-gateway/internal/toolcache"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/urfave/cli/v3"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -177,11 +177,8 @@ func run(ctx context.Context, cfg config) error {
 		}()
 	}
 
-	handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
-		return cache.Current()
-	}, &mcp.StreamableHTTPOptions{})
 	mux := http.NewServeMux()
-	mux.Handle(cfg.path, handler)
+	mux.Handle(cfg.path, mcphttp.NewHandler(cache, logger))
 
 	logger.Info("serving MCP endpoint", "addr", cfg.addr, "path", cfg.path, "grpc_service", cfg.service)
 	return http.ListenAndServe(cfg.addr, mux)

@@ -22,6 +22,7 @@ func NewServer(service protoreflect.ServiceDescriptor) *mcp.Server {
 		WebsiteURL: meta.WebsiteURL,
 	}, &mcp.ServerOptions{
 		Instructions: meta.Instructions,
+		GetSessionID: func() string { return "" },
 	})
 }
 

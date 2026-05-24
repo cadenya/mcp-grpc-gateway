@@ -3,6 +3,7 @@ package toolcache
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -10,6 +11,10 @@ import (
 	"cadenya.com/mcp-grpc-gateway/internal/discovery"
 	"cadenya.com/mcp-grpc-gateway/internal/gateway"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
@@ -20,6 +25,8 @@ type Options struct {
 	Conn    grpc.ClientConnInterface
 	Service string
 	Loader  Loader
+	Logger  *slog.Logger
+	Tracer  trace.Tracer
 }
 
 type Cache struct {
@@ -28,6 +35,8 @@ type Cache struct {
 
 	mu      sync.RWMutex
 	loader  Loader
+	logger  *slog.Logger
+	tracer  trace.Tracer
 	current atomic.Pointer[mcp.Server]
 	version atomic.Uint64
 }
@@ -37,10 +46,20 @@ func New(opts Options) *Cache {
 	if loader == nil {
 		loader = discovery.LoadService
 	}
+	logger := opts.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+	tracer := opts.Tracer
+	if tracer == nil {
+		tracer = otel.Tracer("cadenya.com/mcp-grpc-gateway/internal/toolcache")
+	}
 	return &Cache{
 		conn:    opts.Conn,
 		service: opts.Service,
 		loader:  loader,
+		logger:  logger,
+		tracer:  tracer,
 	}
 }
 
@@ -59,23 +78,38 @@ func (c *Cache) SetLoader(loader Loader) {
 }
 
 func (c *Cache) Reload(ctx context.Context) error {
+	ctx, span := c.tracer.Start(ctx, "toolcache.reload", trace.WithAttributes(attribute.String("grpc.service", c.service)))
+	defer span.End()
+
 	c.mu.RLock()
 	loader := c.loader
 	c.mu.RUnlock()
 	if loader == nil {
-		return fmt.Errorf("tool cache loader is nil")
+		err := fmt.Errorf("tool cache loader is nil")
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		c.logger.Error("reload reflected tools failed", "grpc_service", c.service, "error", err)
+		return err
 	}
 
 	service, err := loader(ctx, c.conn, c.service)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		c.logger.Error("reload reflected tools failed", "grpc_service", c.service, "error", err)
 		return err
 	}
 	server := gateway.NewServer(service)
 	if err := gateway.RegisterTools(server, c.conn, service); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		c.logger.Error("register reflected tools failed", "grpc_service", c.service, "error", err)
 		return err
 	}
 	c.current.Store(server)
-	c.version.Add(1)
+	version := c.version.Add(1)
+	span.SetAttributes(attribute.Int64("toolcache.version", int64(version)))
+	c.logger.Info("reloaded reflected tools", "grpc_service", c.service, "version", version)
 	return nil
 }
 

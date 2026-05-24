@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 
+	"cadenya.com/mcp-grpc-gateway/internal/telemetry"
 	"cadenya.com/mcp-grpc-gateway/internal/toolcache"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/urfave/cli/v3"
@@ -25,11 +26,16 @@ type config struct {
 	path           string
 	tls            bool
 	reloadInterval time.Duration
+	logLevel       string
+	logFormat      string
+	otelEndpoint   string
+	otelInsecure   bool
 }
 
 func main() {
 	if err := newCommand(run).Run(context.Background(), os.Args); err != nil {
-		log.Fatal(err)
+		slog.Error("gateway exited", "error", err)
+		os.Exit(1)
 	}
 }
 
@@ -65,6 +71,24 @@ func newCommand(action func(context.Context, config) error) *cli.Command {
 				Value: time.Minute,
 				Usage: "interval for reloading reflected gRPC tools; set 0 to disable background reloads",
 			},
+			&cli.StringFlag{
+				Name:  "log-level",
+				Value: "info",
+				Usage: "log level: debug, info, warn, or error",
+			},
+			&cli.StringFlag{
+				Name:  "log-format",
+				Value: "text",
+				Usage: "log format: text or json",
+			},
+			&cli.StringFlag{
+				Name:  "otel-endpoint",
+				Usage: "OTLP gRPC trace endpoint, for example collector:4317; disabled when empty",
+			},
+			&cli.BoolFlag{
+				Name:  "otel-insecure",
+				Usage: "disable TLS for the OTLP gRPC trace exporter",
+			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			cfg, err := configFromCommand(cmd)
@@ -84,6 +108,10 @@ func configFromCommand(cmd *cli.Command) (config, error) {
 		path:           cmd.String("path"),
 		tls:            cmd.Bool("tls"),
 		reloadInterval: cmd.Duration("reload-interval"),
+		logLevel:       cmd.String("log-level"),
+		logFormat:      cmd.String("log-format"),
+		otelEndpoint:   cmd.String("otel-endpoint"),
+		otelInsecure:   cmd.Bool("otel-insecure"),
 	}
 	if cfg.path == "" {
 		cfg.path = "/mcp"
@@ -103,6 +131,23 @@ func configFromCommand(cmd *cli.Command) (config, error) {
 }
 
 func run(ctx context.Context, cfg config) error {
+	logger, shutdown, err := telemetry.Setup(ctx, telemetry.Config{
+		LogLevel:     cfg.logLevel,
+		LogFormat:    cfg.logFormat,
+		ServiceName:  "mcp-grpc-gateway",
+		OTELEndpoint: cfg.otelEndpoint,
+		OTELInsecure: cfg.otelInsecure,
+	}, os.Stderr)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := shutdown(context.Background()); err != nil {
+			logger.Error("shutdown telemetry", "error", err)
+		}
+	}()
+	slog.SetDefault(logger)
+
 	conn, err := grpc.NewClient(cfg.grpcHost, dialOptions(cfg)...)
 	if err != nil {
 		return fmt.Errorf("create grpc client: %w", err)
@@ -112,12 +157,17 @@ func run(ctx context.Context, cfg config) error {
 	cache := toolcache.New(toolcache.Options{
 		Conn:    conn,
 		Service: cfg.service,
+		Logger:  logger,
 	})
 	if err := cache.Reload(ctx); err != nil {
 		return err
 	}
 	if cfg.reloadInterval > 0 {
-		go cache.Run(ctx, cfg.reloadInterval)
+		go func() {
+			if err := cache.Run(ctx, cfg.reloadInterval); err != nil && !errors.Is(err, context.Canceled) {
+				logger.Error("tool cache reload loop stopped", "error", err)
+			}
+		}()
 	}
 
 	handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
@@ -126,7 +176,7 @@ func run(ctx context.Context, cfg config) error {
 	mux := http.NewServeMux()
 	mux.Handle(cfg.path, handler)
 
-	log.Printf("serving MCP endpoint on %s%s for gRPC service %s", cfg.addr, cfg.path, cfg.service)
+	logger.Info("serving MCP endpoint", "addr", cfg.addr, "path", cfg.path, "grpc_service", cfg.service)
 	return http.ListenAndServe(cfg.addr, mux)
 }
 

@@ -76,6 +76,52 @@ func (s *DiscoverySuite) TestLoadsFilesForSymbolFromGRPCReflection() {
 	s.Equal("GreeterService", string(desc.Name()))
 }
 
+func (s *DiscoverySuite) TestListsApplicationServicesFromGRPCReflection() {
+	addr, stop := startGRPCServer(s.T())
+	defer stop()
+
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	s.Require().NoError(err)
+	defer conn.Close()
+
+	got, err := discovery.ListServiceNames(context.Background(), conn)
+
+	s.Require().NoError(err)
+	s.Contains(got, "functional.v1.GreeterService")
+	s.NotContains(got, "grpc.reflection.v1.ServerReflection")
+	s.NotContains(got, "grpc.reflection.v1alpha.ServerReflection")
+}
+
+func (s *DiscoverySuite) TestLoadServicesUsesFilterWhenProvided() {
+	addr, stop := startGRPCServer(s.T())
+	defer stop()
+
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	s.Require().NoError(err)
+	defer conn.Close()
+
+	got, err := discovery.LoadServices(context.Background(), conn, []string{"functional.v1.GreeterService"})
+
+	s.Require().NoError(err)
+	s.Require().Len(got, 1)
+	s.Equal("functional.v1.GreeterService", string(got[0].FullName()))
+}
+
+func (s *DiscoverySuite) TestLoadServicesLoadsAllApplicationServicesWithoutFilter() {
+	addr, stop := startGRPCServer(s.T())
+	defer stop()
+
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	s.Require().NoError(err)
+	defer conn.Close()
+
+	got, err := discovery.LoadServices(context.Background(), conn, nil)
+
+	s.Require().NoError(err)
+	s.Require().Len(got, 1)
+	s.Equal("functional.v1.GreeterService", string(got[0].FullName()))
+}
+
 func startGRPCServer(t *testing.T) (string, func()) {
 	t.Helper()
 

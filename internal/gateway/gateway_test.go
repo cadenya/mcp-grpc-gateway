@@ -1,9 +1,11 @@
 package gateway_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"testing"
 
 	"cadenya.com/mcp-grpc-gateway/internal/gateway"
@@ -20,6 +22,8 @@ import (
 type GatewaySuite struct {
 	suite.Suite
 	service protoreflect.ServiceDescriptor
+	other   protoreflect.ServiceDescriptor
+	collide protoreflect.ServiceDescriptor
 	conn    *fakeConn
 }
 
@@ -51,10 +55,22 @@ func (s *GatewaySuite) SetupTest() {
 				{Name: ptr("Echo"), InputType: ptr(".test.v1.EchoRequest"), OutputType: ptr(".test.v1.EchoResponse")},
 				{Name: ptr("Watch"), InputType: ptr(".test.v1.EchoRequest"), OutputType: ptr(".test.v1.EchoResponse"), ServerStreaming: ptr(true)},
 			},
+		}, {
+			Name: ptr("OtherService"),
+			Method: []*descriptorpb.MethodDescriptorProto{
+				{Name: ptr("Ping"), InputType: ptr(".test.v1.EchoRequest"), OutputType: ptr(".test.v1.EchoResponse")},
+			},
+		}, {
+			Name: ptr("CollisionService"),
+			Method: []*descriptorpb.MethodDescriptorProto{
+				{Name: ptr("Echo"), InputType: ptr(".test.v1.EchoRequest"), OutputType: ptr(".test.v1.EchoResponse")},
+			},
 		}},
 	}, nil)
 	s.Require().NoError(err)
 	s.service = fd.Services().ByName("EchoService")
+	s.other = fd.Services().ByName("OtherService")
+	s.collide = fd.Services().ByName("CollisionService")
 	s.conn = &fakeConn{method: s.service.Methods().ByName("Echo")}
 }
 
@@ -94,6 +110,45 @@ func (s *GatewaySuite) TestCanRequireToolAnnotations() {
 	}
 
 	s.Empty(tools)
+}
+
+func (s *GatewaySuite) TestRegistersToolsFromMultipleServices() {
+	server := mcp.NewServer(&mcp.Implementation{Name: "gateway", Version: "test"}, nil)
+	seen := map[string]string{}
+	s.Require().NoError(gateway.RegisterTools(server, s.conn, s.service, gateway.WithRegisteredToolNames(seen)))
+	s.Require().NoError(gateway.RegisterTools(server, s.conn, s.other, gateway.WithRegisteredToolNames(seen)))
+	session := s.connect(server)
+	defer session.Close()
+
+	var names []string
+	for tool, err := range session.Tools(context.Background(), nil) {
+		s.Require().NoError(err)
+		names = append(names, tool.Name)
+	}
+	s.ElementsMatch([]string{"Echo", "Ping"}, names)
+}
+
+func (s *GatewaySuite) TestSkipsToolNameCollisionsAndWarns() {
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	server := mcp.NewServer(&mcp.Implementation{Name: "gateway", Version: "test"}, nil)
+	seen := map[string]string{}
+
+	s.Require().NoError(gateway.RegisterTools(server, s.conn, s.service, gateway.WithRegisteredToolNames(seen), gateway.WithLogger(logger)))
+	s.Require().NoError(gateway.RegisterTools(server, s.conn, s.collide, gateway.WithRegisteredToolNames(seen), gateway.WithLogger(logger)))
+
+	session := s.connect(server)
+	defer session.Close()
+
+	var tools []*mcp.Tool
+	for tool, err := range session.Tools(context.Background(), nil) {
+		s.Require().NoError(err)
+		tools = append(tools, tool)
+	}
+	s.Require().Len(tools, 1)
+	s.Contains(logs.String(), "tool name collision")
+	s.Contains(logs.String(), "grpc_service=test.v1.CollisionService")
+	s.Contains(logs.String(), "tool_name=Echo")
 }
 
 func (s *GatewaySuite) TestToolCallInvokesGRPCAndReturnsStructuredContent() {

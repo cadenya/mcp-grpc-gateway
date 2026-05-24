@@ -19,11 +19,12 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
-type Loader func(context.Context, grpc.ClientConnInterface, string) (protoreflect.ServiceDescriptor, error)
+type Loader func(context.Context, grpc.ClientConnInterface, []string) ([]protoreflect.ServiceDescriptor, error)
 
 type Options struct {
 	Conn                   grpc.ClientConnInterface
 	Service                string
+	Services               []string
 	Loader                 Loader
 	Logger                 *slog.Logger
 	Tracer                 trace.Tracer
@@ -31,8 +32,8 @@ type Options struct {
 }
 
 type Cache struct {
-	conn    grpc.ClientConnInterface
-	service string
+	conn     grpc.ClientConnInterface
+	services []string
 
 	mu                     sync.RWMutex
 	loader                 Loader
@@ -46,7 +47,7 @@ type Cache struct {
 func New(opts Options) *Cache {
 	loader := opts.Loader
 	if loader == nil {
-		loader = discovery.LoadService
+		loader = discovery.LoadServices
 	}
 	logger := opts.Logger
 	if logger == nil {
@@ -56,9 +57,13 @@ func New(opts Options) *Cache {
 	if tracer == nil {
 		tracer = otel.Tracer("cadenya.com/mcp-grpc-gateway/internal/toolcache")
 	}
+	services := opts.Services
+	if len(services) == 0 && opts.Service != "" {
+		services = []string{opts.Service}
+	}
 	return &Cache{
 		conn:                   opts.Conn,
-		service:                opts.Service,
+		services:               services,
 		loader:                 loader,
 		logger:                 logger,
 		tracer:                 tracer,
@@ -81,7 +86,7 @@ func (c *Cache) SetLoader(loader Loader) {
 }
 
 func (c *Cache) Reload(ctx context.Context) error {
-	ctx, span := c.tracer.Start(ctx, "toolcache.reload", trace.WithAttributes(attribute.String("grpc.service", c.service)))
+	ctx, span := c.tracer.Start(ctx, "toolcache.reload", trace.WithAttributes(attribute.StringSlice("grpc.services", c.services)))
 	defer span.End()
 
 	c.mu.RLock()
@@ -91,32 +96,43 @@ func (c *Cache) Reload(ctx context.Context) error {
 		err := fmt.Errorf("tool cache loader is nil")
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-		c.logger.Error("reload reflected tools failed", "grpc_service", c.service, "error", err)
+		c.logger.Error("reload reflected tools failed", "grpc_services", c.services, "error", err)
 		return err
 	}
 
-	service, err := loader(ctx, c.conn, c.service)
+	services, err := loader(ctx, c.conn, c.services)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-		c.logger.Error("reload reflected tools failed", "grpc_service", c.service, "error", err)
+		c.logger.Error("reload reflected tools failed", "grpc_services", c.services, "error", err)
 		return err
 	}
-	server := gateway.NewServer(service)
+	if len(services) == 0 {
+		err := fmt.Errorf("no gRPC services discovered")
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		c.logger.Error("reload reflected tools failed", "grpc_services", c.services, "error", err)
+		return err
+	}
+	server := gateway.NewServer(services[0])
 	registerOpts := []gateway.RegisterOption{}
 	if c.requireToolAnnotations {
 		registerOpts = append(registerOpts, gateway.WithRequireToolAnnotations(true))
 	}
-	if err := gateway.RegisterTools(server, c.conn, service, registerOpts...); err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
-		c.logger.Error("register reflected tools failed", "grpc_service", c.service, "error", err)
-		return err
+	registered := map[string]string{}
+	registerOpts = append(registerOpts, gateway.WithRegisteredToolNames(registered), gateway.WithLogger(c.logger))
+	for _, service := range services {
+		if err := gateway.RegisterTools(server, c.conn, service, registerOpts...); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			c.logger.Error("register reflected tools failed", "grpc_service", string(service.FullName()), "error", err)
+			return err
+		}
 	}
 	c.current.Store(server)
 	version := c.version.Add(1)
 	span.SetAttributes(attribute.Int64("toolcache.version", int64(version)))
-	c.logger.Info("reloaded reflected tools", "grpc_service", c.service, "version", version)
+	c.logger.Info("reloaded reflected tools", "grpc_services", serviceNames(services), "version", version)
 	return nil
 }
 
@@ -139,4 +155,12 @@ func (c *Cache) Run(ctx context.Context, interval time.Duration) error {
 			_ = c.Reload(ctx)
 		}
 	}
+}
+
+func serviceNames(services []protoreflect.ServiceDescriptor) []string {
+	names := make([]string, 0, len(services))
+	for _, service := range services {
+		names = append(names, string(service.FullName()))
+	}
+	return names
 }

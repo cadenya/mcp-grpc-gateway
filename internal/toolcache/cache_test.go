@@ -34,7 +34,7 @@ func TestCacheReloadKeepsLastKnownGoodServerOnReflectionFailure(t *testing.T) {
 	require.NotNil(t, initial)
 	require.Equal(t, uint64(1), cache.Version())
 
-	cache.SetLoader(func(context.Context, grpc.ClientConnInterface, string) (protoreflect.ServiceDescriptor, error) {
+	cache.SetLoader(func(context.Context, grpc.ClientConnInterface, []string) ([]protoreflect.ServiceDescriptor, error) {
 		return nil, fmt.Errorf("reflection unavailable")
 	})
 
@@ -62,6 +62,31 @@ func TestCacheReloadSwapsServerAfterSuccessfulReflectionReload(t *testing.T) {
 	require.NoError(t, cache.Reload(ctx))
 	require.NotSame(t, initial, cache.Current())
 	require.Equal(t, uint64(2), cache.Version())
+
+	session := connectMCP(t, cache.Current())
+	defer session.Close()
+	var tools []*mcp.Tool
+	for tool, err := range session.Tools(ctx, nil) {
+		require.NoError(t, err)
+		tools = append(tools, tool)
+	}
+	require.Len(t, tools, 1)
+	require.Equal(t, "greet_user", tools[0].Name)
+}
+
+func TestCacheReloadLoadsAllServicesWhenNoFilterIsProvided(t *testing.T) {
+	ctx := context.Background()
+	addr, stop := startGRPCServer(t)
+	defer stop()
+
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+	defer conn.Close()
+
+	cache := toolcache.New(toolcache.Options{
+		Conn: conn,
+	})
+	require.NoError(t, cache.Reload(ctx))
 
 	session := connectMCP(t, cache.Current())
 	defer session.Close()

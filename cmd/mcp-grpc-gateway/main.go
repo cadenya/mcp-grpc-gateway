@@ -25,7 +25,7 @@ import (
 type config struct {
 	addr                   string
 	grpcHost               string
-	service                string
+	services               []string
 	path                   string
 	tls                    bool
 	reloadInterval         time.Duration
@@ -61,9 +61,9 @@ func newCommand(action func(context.Context, config) error) *cli.Command {
 				Name:  "grpc-host",
 				Usage: "gRPC host to reflect and invoke",
 			},
-			&cli.StringFlag{
+			&cli.StringSliceFlag{
 				Name:  "service",
-				Usage: "fully-qualified gRPC service name",
+				Usage: "fully-qualified gRPC service name to expose; may be repeated; omit to expose all reflected services",
 			},
 			&cli.StringFlag{
 				Name:  "path",
@@ -120,7 +120,7 @@ func configFromCommand(cmd *cli.Command) (config, error) {
 	cfg := config{
 		addr:                   cmd.String("addr"),
 		grpcHost:               cmd.String("grpc-host"),
-		service:                cmd.String("service"),
+		services:               cmd.StringSlice("service"),
 		path:                   cmd.String("path"),
 		tls:                    cmd.Bool("tls"),
 		reloadInterval:         cmd.Duration("reload-interval"),
@@ -141,9 +141,6 @@ func configFromCommand(cmd *cli.Command) (config, error) {
 	var errs []error
 	if cfg.grpcHost == "" {
 		errs = append(errs, errors.New("--grpc-host is required"))
-	}
-	if cfg.service == "" {
-		errs = append(errs, errors.New("--service is required"))
 	}
 	return cfg, errors.Join(errs...)
 }
@@ -174,7 +171,7 @@ func run(ctx context.Context, cfg config) error {
 
 	cache := toolcache.New(toolcache.Options{
 		Conn:                   conn,
-		Service:                cfg.service,
+		Services:               cfg.services,
 		Logger:                 logger,
 		RequireToolAnnotations: cfg.requireToolAnnotations,
 	})
@@ -200,7 +197,7 @@ func run(ctx context.Context, cfg config) error {
 		Handler: mux,
 	}
 
-	logger.Info("serving MCP endpoint", "addr", listener.Addr().String(), "path", cfg.path, "grpc_service", cfg.service)
+	logger.Info("serving MCP endpoint", "addr", listener.Addr().String(), "path", cfg.path, "grpc_services", cfg.services)
 	return serveHTTP(ctx, server, listener, logger)
 }
 

@@ -29,7 +29,7 @@ func TestCommandDefaultsAndNormalizesPath(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "0.0.0.0:8080", got.addr)
 	require.Equal(t, "localhost:50051", got.grpcHost)
-	require.Equal(t, "test.v1.Service", got.service)
+	require.Equal(t, []string{"test.v1.Service"}, got.services)
 	require.Equal(t, "/mcp", got.path)
 	require.False(t, got.tls)
 	require.Equal(t, time.Minute, got.reloadInterval)
@@ -49,7 +49,40 @@ func TestCommandRequiresGRPCHostAndService(t *testing.T) {
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "--grpc-host is required")
-	require.Contains(t, err.Error(), "--service is required")
+}
+
+func TestCommandAllowsOmittingServiceFilter(t *testing.T) {
+	var got config
+	cmd := newCommand(func(_ context.Context, cfg config) error {
+		got = cfg
+		return nil
+	})
+
+	err := cmd.Run(context.Background(), []string{
+		"mcp-grpc-gateway",
+		"--grpc-host", "localhost:50051",
+	})
+
+	require.NoError(t, err)
+	require.Empty(t, got.services)
+}
+
+func TestCommandParsesMultipleServiceFilters(t *testing.T) {
+	var got config
+	cmd := newCommand(func(_ context.Context, cfg config) error {
+		got = cfg
+		return nil
+	})
+
+	err := cmd.Run(context.Background(), []string{
+		"mcp-grpc-gateway",
+		"--grpc-host", "localhost:50051",
+		"--service", "test.v1.FirstService",
+		"--service", "test.v1.SecondService",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"test.v1.FirstService", "test.v1.SecondService"}, got.services)
 }
 
 func TestDialOptionsUseTLSOnlyWhenRequested(t *testing.T) {

@@ -3,6 +3,8 @@ package discovery
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 
 	"google.golang.org/grpc"
 	reflectionv1alpha "google.golang.org/grpc/reflection/grpc_reflection_v1alpha"
@@ -34,6 +36,64 @@ func LoadService(ctx context.Context, conn grpc.ClientConnInterface, service str
 		return nil, err
 	}
 	return FindService(files, service)
+}
+
+func LoadServices(ctx context.Context, conn grpc.ClientConnInterface, services []string) ([]protoreflect.ServiceDescriptor, error) {
+	names := normalizeServiceNames(services)
+	var err error
+	if len(names) == 0 {
+		names, err = ListServiceNames(ctx, conn)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	out := make([]protoreflect.ServiceDescriptor, 0, len(names))
+	for _, name := range names {
+		service, err := LoadService(ctx, conn, name)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, service)
+	}
+	return out, nil
+}
+
+func ListServiceNames(ctx context.Context, conn grpc.ClientConnInterface) ([]string, error) {
+	client := reflectionv1alpha.NewServerReflectionClient(conn)
+	stream, err := client.ServerReflectionInfo(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("open grpc reflection stream: %w", err)
+	}
+	if err := stream.Send(&reflectionv1alpha.ServerReflectionRequest{
+		MessageRequest: &reflectionv1alpha.ServerReflectionRequest_ListServices{
+			ListServices: "*",
+		},
+	}); err != nil {
+		return nil, fmt.Errorf("request service list: %w", err)
+	}
+	resp, err := stream.Recv()
+	if err != nil {
+		return nil, fmt.Errorf("receive service list: %w", err)
+	}
+	if refErr := resp.GetErrorResponse(); refErr != nil {
+		return nil, fmt.Errorf("reflection error listing services: %s", refErr.ErrorMessage)
+	}
+
+	list := resp.GetListServicesResponse()
+	if list == nil {
+		return nil, fmt.Errorf("reflection response did not include service list")
+	}
+	names := make([]string, 0, len(list.GetService()))
+	for _, service := range list.GetService() {
+		name := service.GetName()
+		if isReflectionService(name) {
+			continue
+		}
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names, nil
 }
 
 func LoadFilesForSymbol(ctx context.Context, conn grpc.ClientConnInterface, symbol string) (*protoregistry.Files, error) {
@@ -70,4 +130,25 @@ func LoadFilesForSymbol(ctx context.Context, conn grpc.ClientConnInterface, symb
 		return nil, fmt.Errorf("build descriptor registry: %w", err)
 	}
 	return files, nil
+}
+
+func normalizeServiceNames(services []string) []string {
+	out := make([]string, 0, len(services))
+	seen := map[string]struct{}{}
+	for _, service := range services {
+		service = strings.TrimSpace(service)
+		if service == "" {
+			continue
+		}
+		if _, ok := seen[service]; ok {
+			continue
+		}
+		seen[service] = struct{}{}
+		out = append(out, service)
+	}
+	return out
+}
+
+func isReflectionService(name string) bool {
+	return strings.HasPrefix(name, "grpc.reflection.")
 }

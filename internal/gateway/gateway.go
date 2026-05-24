@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 
 	"cadenya.com/mcp-grpc-gateway/internal/annotations"
 	"cadenya.com/mcp-grpc-gateway/internal/grpcinvoke"
@@ -30,11 +31,25 @@ type RegisterOption func(*registerConfig)
 
 type registerConfig struct {
 	requireToolAnnotations bool
+	registeredToolNames    map[string]string
+	logger                 *slog.Logger
 }
 
 func WithRequireToolAnnotations(require bool) RegisterOption {
 	return func(cfg *registerConfig) {
 		cfg.requireToolAnnotations = require
+	}
+}
+
+func WithRegisteredToolNames(names map[string]string) RegisterOption {
+	return func(cfg *registerConfig) {
+		cfg.registeredToolNames = names
+	}
+}
+
+func WithLogger(logger *slog.Logger) RegisterOption {
+	return func(cfg *registerConfig) {
+		cfg.logger = logger
 	}
 }
 
@@ -52,6 +67,12 @@ func RegisterTools(server *mcp.Server, conn grpc.ClientConnInterface, service pr
 	for _, opt := range opts {
 		opt(&cfg)
 	}
+	if cfg.registeredToolNames == nil {
+		cfg.registeredToolNames = map[string]string{}
+	}
+	if cfg.logger == nil {
+		cfg.logger = slog.Default()
+	}
 
 	methods := service.Methods()
 	for i := 0; i < methods.Len(); i++ {
@@ -63,11 +84,20 @@ func RegisterTools(server *mcp.Server, conn grpc.ClientConnInterface, service pr
 		if cfg.requireToolAnnotations && !meta.Annotated {
 			continue
 		}
+		if existingService, ok := cfg.registeredToolNames[meta.Name]; ok {
+			cfg.logger.Warn("tool name collision",
+				"grpc_service", string(service.FullName()),
+				"existing_grpc_service", existingService,
+				"tool_name", meta.Name,
+			)
+			continue
+		}
 		inputSchema, err := schema.ForMessage(method.Input())
 		if err != nil {
 			return fmt.Errorf("build schema for %s: %w", method.FullName(), err)
 		}
 		registerTool(server, conn, method, meta, inputSchema)
+		cfg.registeredToolNames[meta.Name] = string(service.FullName())
 	}
 	return nil
 }

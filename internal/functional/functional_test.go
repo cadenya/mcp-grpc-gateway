@@ -134,7 +134,7 @@ func TestMCPEndpointKeepsCachedToolsWhenReflectionReloadFails(t *testing.T) {
 	httpServer := httptest.NewServer(mcphttp.NewHandler(cache, nil))
 	defer httpServer.Close()
 
-	cache.SetLoader(func(context.Context, grpc.ClientConnInterface, string) (protoreflect.ServiceDescriptor, error) {
+	cache.SetLoader(func(context.Context, grpc.ClientConnInterface, []string) ([]protoreflect.ServiceDescriptor, error) {
 		return nil, context.DeadlineExceeded
 	})
 	require.Error(t, cache.Reload(ctx))

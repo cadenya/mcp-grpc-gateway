@@ -9,10 +9,10 @@ This project was designed to act as a gateway for MCP to your gRPC services. It 
 To run this as a binary, you can run:
 
 ```bash
-mcp-grpc-gateway --addr 0.0.0.0:8080 --grpc-host your-grpc-service:50051 --service "youapp.v1.Service" --path "/mcp"
+mcp-grpc-gateway --addr 0.0.0.0:8080 --grpc-host your-grpc-service:50051 --path "/mcp"
 ```
 
-This will start a server that listens on port 8080, reads the RPC definitions at `your-grpc-service:50051`, and hosts your MCP endpoint at `/mcp`.
+This will start a server that listens on port 8080, reads the reflected RPC definitions at `your-grpc-service:50051`, and hosts your MCP endpoint at `/mcp`.
 
 ## Docker
 
@@ -20,8 +20,7 @@ The project publishes a distroless, non-root Docker image to Docker Hub:
 
 ```bash
 docker run --rm -p 8080:8080 cadenyaagents/mcp-grpc-gateway:latest \
-  --grpc-host your-grpc-service:50051 \
-  --service "yourapp.v1.Service"
+  --grpc-host your-grpc-service:50051
 ```
 
 The runtime image has no shell or package manager and runs as a non-root user.
@@ -70,6 +69,21 @@ mcp-grpc-gateway \
   --forward-header X-Request-ID
 ```
 
+## Service Filters
+
+By default the gateway loads all non-reflection services exposed by the downstream gRPC server's reflection API. This is useful for production servers that host multiple gRPC services on the same listener.
+
+Use `--service` when you want to expose only specific services. The flag may be repeated, and tools from the selected services are appended into one MCP server.
+
+```bash
+mcp-grpc-gateway \
+  --grpc-host your-grpc-service:50051 \
+  --service "yourapp.v1.ObjectivesService" \
+  --service "yourapp.v1.UsersService"
+```
+
+Tool names must be unique across all loaded services. If two RPCs produce the same MCP tool name, the first one is kept and the gateway emits a warning log with the colliding service name and tool name.
+
 ## Annotations
 
 By default your RPC definitions in your gRPC endpoint will be exposed 1:1 for RPC names as tools. You can override this behavior, add tool descriptions for LLMs, and configure MCP server metadata with annotations.
@@ -102,7 +116,7 @@ service Service {
 If you want developers to explicitly disclose which RPCs become MCP tools, start the gateway with `--require-tool-annotations`. In that mode, only unary RPCs with `grpcmcpgateway.v1.tool` annotations are exposed.
 
 ```bash
-mcp-grpc-gateway --grpc-host your-grpc-service:50051 --service "yourapp.v1.Service" --require-tool-annotations
+mcp-grpc-gateway --grpc-host your-grpc-service:50051 --require-tool-annotations
 ```
 
 ## Buf Examples
@@ -150,18 +164,18 @@ service ObjectivesService {
 
 ## Tool Snapshot Reloads
 
-The gateway keeps a reflected snapshot of your gRPC service and periodically reloads it. When a reload succeeds, new MCP sessions use the new tool set. When reflection fails during a rolling deploy, the gateway keeps serving the last known-good snapshot.
+The gateway keeps a reflected snapshot of your gRPC services and periodically reloads it. When a reload succeeds, new MCP sessions use the new tool set. When reflection fails during a rolling deploy, the gateway keeps serving the last known-good snapshot.
 
 By default snapshots reload every minute:
 
 ```bash
-mcp-grpc-gateway --grpc-host your-grpc-service:50051 --service "yourapp.v1.Service" --reload-interval 1m
+mcp-grpc-gateway --grpc-host your-grpc-service:50051 --reload-interval 1m
 ```
 
 You can disable background reloads by setting the interval to `0`:
 
 ```bash
-mcp-grpc-gateway --grpc-host your-grpc-service:50051 --service "yourapp.v1.Service" --reload-interval 0
+mcp-grpc-gateway --grpc-host your-grpc-service:50051 --reload-interval 0
 ```
 
 ## Logging
@@ -169,7 +183,7 @@ mcp-grpc-gateway --grpc-host your-grpc-service:50051 --service "yourapp.v1.Servi
 The gateway logs with Go's structured `slog` package. Logs are written to stderr, with `text` output by default.
 
 ```bash
-mcp-grpc-gateway --grpc-host your-grpc-service:50051 --service "yourapp.v1.Service" --log-level debug --log-format json
+mcp-grpc-gateway --grpc-host your-grpc-service:50051 --log-level debug --log-format json
 ```
 
 Supported log levels are `debug`, `info`, `warn`, and `error`. Supported formats are `text` and `json`.
@@ -181,7 +195,6 @@ Tracing is disabled unless an OTLP gRPC endpoint is configured. When enabled, th
 ```bash
 mcp-grpc-gateway \
   --grpc-host your-grpc-service:50051 \
-  --service "yourapp.v1.Service" \
   --otel-endpoint collector:4317
 ```
 
@@ -190,7 +203,6 @@ For local collectors that do not use TLS, add `--otel-insecure`:
 ```bash
 mcp-grpc-gateway \
   --grpc-host your-grpc-service:50051 \
-  --service "yourapp.v1.Service" \
   --otel-endpoint localhost:4317 \
   --otel-insecure
 ```

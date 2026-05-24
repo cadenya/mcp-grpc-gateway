@@ -5,7 +5,7 @@ import (
 	"log"
 	"net"
 
-	"cadenya.com/mcp-grpc-gateway/internal/testpb"
+	"go.cadenya.com/mcp-grpc-gateway/internal/testpb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/reflection"

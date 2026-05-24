@@ -331,7 +331,7 @@ const file_grpcmcpgateway_v1_annotations_proto_rawDesc = "" +
 	"\vdescription\x18\x01 \x01(\tR\vdescription:T\n" +
 	"\x06server\x12\x1f.google.protobuf.ServiceOptions\x18\xd3\xf1\x04 \x01(\v2\x19.grpcmcpgateway.v1.ServerR\x06server:M\n" +
 	"\x04tool\x12\x1e.google.protobuf.MethodOptions\x18\xd4\xf1\x04 \x01(\v2\x17.grpcmcpgateway.v1.ToolR\x04tool:O\n" +
-	"\x05field\x12\x1d.google.protobuf.FieldOptions\x18\xd5\xf1\x04 \x01(\v2\x18.grpcmcpgateway.v1.FieldR\x05fieldBEZCcadenya.com/mcp-grpc-gateway/gen/grpcmcpgateway/v1;grpcmcpgatewayv1b\x06proto3"
+	"\x05field\x12\x1d.google.protobuf.FieldOptions\x18\xd5\xf1\x04 \x01(\v2\x18.grpcmcpgateway.v1.FieldR\x05fieldBHZFgo.cadenya.com/mcp-grpc-gateway/gen/grpcmcpgateway/v1;grpcmcpgatewayv1b\x06proto3"
 
 var (
 	file_grpcmcpgateway_v1_annotations_proto_rawDescOnce sync.Once

@@ -5,8 +5,8 @@ import (
 	"net"
 	"testing"
 
-	"cadenya.com/mcp-grpc-gateway/internal/discovery"
-	"cadenya.com/mcp-grpc-gateway/internal/testpb"
+	"go.cadenya.com/mcp-grpc-gateway/internal/discovery"
+	"go.cadenya.com/mcp-grpc-gateway/internal/testpb"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"

@@ -287,7 +287,7 @@ const file_functional_v1_complex_proto_rawDesc = "" +
 	"\bPriority\x12\x18\n" +
 	"\x14PRIORITY_UNSPECIFIED\x10\x00\x12\x10\n" +
 	"\fPRIORITY_LOW\x10\x01\x12\x11\n" +
-	"\rPRIORITY_HIGH\x10\x02B5Z3cadenya.com/mcp-grpc-gateway/internal/testpb;testpbb\x06proto3"
+	"\rPRIORITY_HIGH\x10\x02B8Z6go.cadenya.com/mcp-grpc-gateway/internal/testpb;testpbb\x06proto3"
 
 var (
 	file_functional_v1_complex_proto_rawDescOnce sync.Once

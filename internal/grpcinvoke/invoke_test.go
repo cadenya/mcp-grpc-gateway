@@ -5,7 +5,7 @@ import (
 	"net"
 	"testing"
 
-	"cadenya.com/mcp-grpc-gateway/internal/grpcinvoke"
+	"go.cadenya.com/mcp-grpc-gateway/internal/grpcinvoke"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/test/bufconn"

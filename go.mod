@@ -1,4 +1,4 @@
-module cadenya.com/mcp-grpc-gateway
+module go.cadenya.com/mcp-grpc-gateway
 
 go 1.26.3
 

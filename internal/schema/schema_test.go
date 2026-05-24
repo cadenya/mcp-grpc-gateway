@@ -3,7 +3,7 @@ package schema_test
 import (
 	"testing"
 
-	gatewayschema "cadenya.com/mcp-grpc-gateway/internal/schema"
+	gatewayschema "go.cadenya.com/mcp-grpc-gateway/internal/schema"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/reflect/protoreflect"

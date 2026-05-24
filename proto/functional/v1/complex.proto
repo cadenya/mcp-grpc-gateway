@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package functional.v1;
 
-option go_package = "cadenya.com/mcp-grpc-gateway/internal/testpb;testpb";
+option go_package = "go.cadenya.com/mcp-grpc-gateway/internal/testpb;testpb";
 
 enum Priority {
   PRIORITY_UNSPECIFIED = 0;

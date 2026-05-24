@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"log/slog"
 
-	"cadenya.com/mcp-grpc-gateway/internal/annotations"
-	"cadenya.com/mcp-grpc-gateway/internal/grpcinvoke"
-	"cadenya.com/mcp-grpc-gateway/internal/schema"
+	"go.cadenya.com/mcp-grpc-gateway/internal/annotations"
+	"go.cadenya.com/mcp-grpc-gateway/internal/grpcinvoke"
+	"go.cadenya.com/mcp-grpc-gateway/internal/schema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/reflect/protoreflect"

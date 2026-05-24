@@ -8,7 +8,7 @@ import (
 	"log/slog"
 	"testing"
 
-	"cadenya.com/mcp-grpc-gateway/internal/gateway"
+	"go.cadenya.com/mcp-grpc-gateway/internal/gateway"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/grpc"

@@ -4,7 +4,7 @@ package functional.v1;
 
 import "grpcmcpgateway/v1/annotations.proto";
 
-option go_package = "cadenya.com/mcp-grpc-gateway/internal/testpb;testpb";
+option go_package = "go.cadenya.com/mcp-grpc-gateway/internal/testpb;testpb";
 
 service GreeterService {
   option (grpcmcpgateway.v1.server) = {

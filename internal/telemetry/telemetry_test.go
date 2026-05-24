@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"testing"
 
-	"cadenya.com/mcp-grpc-gateway/internal/telemetry"
+	"go.cadenya.com/mcp-grpc-gateway/internal/telemetry"
 	"github.com/stretchr/testify/require"
 )
 

@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"cadenya.com/mcp-grpc-gateway/internal/mcphttp"
+	"go.cadenya.com/mcp-grpc-gateway/internal/mcphttp"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
 )

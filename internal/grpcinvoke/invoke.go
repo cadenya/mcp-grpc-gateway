@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"cadenya.com/mcp-grpc-gateway/internal/forwardmetadata"
+	"go.cadenya.com/mcp-grpc-gateway/internal/forwardmetadata"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -16,7 +16,7 @@ import (
 	"google.golang.org/protobuf/types/dynamicpb"
 )
 
-var tracer = otel.Tracer("cadenya.com/mcp-grpc-gateway/internal/grpcinvoke")
+var tracer = otel.Tracer("go.cadenya.com/mcp-grpc-gateway/internal/grpcinvoke")
 
 func InvokeUnary(ctx context.Context, conn grpc.ClientConnInterface, method protoreflect.MethodDescriptor, args []byte) (map[string]any, error) {
 	if conn == nil {

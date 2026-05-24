@@ -4,9 +4,9 @@ plugins:
     out: .
     opt:
       - paths=import
-      - module=cadenya.com/mcp-grpc-gateway
+      - module=go.cadenya.com/mcp-grpc-gateway
   - remote: buf.build/grpc/go
     out: .
     opt:
       - paths=import
-      - module=cadenya.com/mcp-grpc-gateway
+      - module=go.cadenya.com/mcp-grpc-gateway

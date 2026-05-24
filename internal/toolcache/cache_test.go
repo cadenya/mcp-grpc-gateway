@@ -6,8 +6,8 @@ import (
 	"net"
 	"testing"
 
-	"cadenya.com/mcp-grpc-gateway/internal/testpb"
-	"cadenya.com/mcp-grpc-gateway/internal/toolcache"
+	"go.cadenya.com/mcp-grpc-gateway/internal/testpb"
+	"go.cadenya.com/mcp-grpc-gateway/internal/toolcache"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"

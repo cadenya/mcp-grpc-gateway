@@ -3,8 +3,8 @@ package schema_test
 import (
 	"testing"
 
-	gatewayschema "cadenya.com/mcp-grpc-gateway/internal/schema"
-	"cadenya.com/mcp-grpc-gateway/internal/testpb"
+	gatewayschema "go.cadenya.com/mcp-grpc-gateway/internal/schema"
+	"go.cadenya.com/mcp-grpc-gateway/internal/testpb"
 	"github.com/stretchr/testify/require"
 )
 

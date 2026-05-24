@@ -13,9 +13,9 @@ import (
 	"syscall"
 	"time"
 
-	"cadenya.com/mcp-grpc-gateway/internal/mcphttp"
-	"cadenya.com/mcp-grpc-gateway/internal/telemetry"
-	"cadenya.com/mcp-grpc-gateway/internal/toolcache"
+	"go.cadenya.com/mcp-grpc-gateway/internal/mcphttp"
+	"go.cadenya.com/mcp-grpc-gateway/internal/telemetry"
+	"go.cadenya.com/mcp-grpc-gateway/internal/toolcache"
 	"github.com/urfave/cli/v3"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"

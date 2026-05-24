@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"cadenya.com/mcp-grpc-gateway/internal/forwardmetadata"
+	"go.cadenya.com/mcp-grpc-gateway/internal/forwardmetadata"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"google.golang.org/grpc/metadata"
 )

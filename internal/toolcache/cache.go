@@ -8,8 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"cadenya.com/mcp-grpc-gateway/internal/discovery"
-	"cadenya.com/mcp-grpc-gateway/internal/gateway"
+	"go.cadenya.com/mcp-grpc-gateway/internal/discovery"
+	"go.cadenya.com/mcp-grpc-gateway/internal/gateway"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -55,7 +55,7 @@ func New(opts Options) *Cache {
 	}
 	tracer := opts.Tracer
 	if tracer == nil {
-		tracer = otel.Tracer("cadenya.com/mcp-grpc-gateway/internal/toolcache")
+		tracer = otel.Tracer("go.cadenya.com/mcp-grpc-gateway/internal/toolcache")
 	}
 	services := opts.Services
 	if len(services) == 0 && opts.Service != "" {

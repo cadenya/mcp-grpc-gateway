@@ -7,7 +7,7 @@
 package testpb
 
 import (
-	_ "cadenya.com/mcp-grpc-gateway/gen/grpcmcpgateway/v1"
+	_ "go.cadenya.com/mcp-grpc-gateway/gen/grpcmcpgateway/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -216,7 +216,7 @@ const file_functional_v1_greeter_proto_rawDesc = "" +
 	"\n" +
 	"greet_user\x12\x15Greets a user by name\x12_\n" +
 	"\x0eWatchGreetings\x12$.functional.v1.WatchGreetingsRequest\x1a%.functional.v1.WatchGreetingsResponse0\x01\x1ak\x9a\x8d'g\n" +
-	"\agreeter\x12\x0fGreeter Service\x1a\x051.0.0\"'Use this server to greet users by name.*\x1bhttps://example.com/greeterB5Z3cadenya.com/mcp-grpc-gateway/internal/testpb;testpbb\x06proto3"
+	"\agreeter\x12\x0fGreeter Service\x1a\x051.0.0\"'Use this server to greet users by name.*\x1bhttps://example.com/greeterB8Z6go.cadenya.com/mcp-grpc-gateway/internal/testpb;testpbb\x06proto3"
 
 var (
 	file_functional_v1_greeter_proto_rawDescOnce sync.Once

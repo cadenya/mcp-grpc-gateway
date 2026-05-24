@@ -3,8 +3,8 @@ package annotations_test
 import (
 	"testing"
 
-	grpcmcpgatewayv1 "cadenya.com/mcp-grpc-gateway/gen/grpcmcpgateway/v1"
-	"cadenya.com/mcp-grpc-gateway/internal/annotations"
+	grpcmcpgatewayv1 "go.cadenya.com/mcp-grpc-gateway/gen/grpcmcpgateway/v1"
+	"go.cadenya.com/mcp-grpc-gateway/internal/annotations"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/proto"

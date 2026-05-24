@@ -32,19 +32,11 @@ type greeterServer struct {
 }
 
 func (greeterServer) Greet(ctx context.Context, req *testpb.GreetRequest) (*testpb.GreetResponse, error) {
-	auth := firstMetadataValue(ctx, "authorization")
-	if auth == "" {
-		log.Printf("Greet name=%q authorization=<empty>", req.GetName())
-	} else {
-		log.Printf("Greet name=%q authorization=%q", req.GetName(), auth)
-	}
+	log.Printf("Greet name=%q authorization_present=%t", req.GetName(), hasMetadataValue(ctx, "authorization"))
 	return &testpb.GreetResponse{Greeting: "Hello, " + req.GetName()}, nil
 }
 
-func firstMetadataValue(ctx context.Context, key string) string {
+func hasMetadataValue(ctx context.Context, key string) bool {
 	values := metadata.ValueFromIncomingContext(ctx, key)
-	if len(values) == 0 {
-		return ""
-	}
-	return values[0]
+	return len(values) > 0 && values[0] != ""
 }

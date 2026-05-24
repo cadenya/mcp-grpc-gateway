@@ -70,7 +70,7 @@ You should see a structured response like:
 {"greeting":"Hello, Ada"}
 ```
 
-The greeter logs should also show that the `Authorization` header was forwarded to gRPC metadata:
+The greeter logs should also show that `Authorization` metadata was present. The example intentionally does not log the header value.
 
 ```bash
 kubectl logs deployment/greeter

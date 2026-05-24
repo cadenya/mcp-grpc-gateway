@@ -28,6 +28,9 @@ spec:
             - --require-tool-annotations
             - --forward-header
             - Authorization
+            - --otel-endpoint
+            - otel-collector:4317
+            - --otel-insecure
           ports:
             - name: http
               containerPort: 8080

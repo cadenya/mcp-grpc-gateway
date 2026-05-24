@@ -1,6 +1,6 @@
 # Kubernetes Example
 
-This example runs a small reflected gRPC greeter service beside the MCP gRPC Gateway in Kubernetes.
+This example runs a small reflected gRPC greeter service beside the MCP gRPC Gateway in Kubernetes. It also runs a dummy OpenTelemetry Collector that receives OTLP gRPC traces from the gateway and prints them to its pod logs.
 
 The greeter uses the annotated `functional.v1.GreeterService` proto from this repository. The gateway discovers services through gRPC reflection, loads all non-reflection services by default, and exposes the annotated `greet_user` RPC as an MCP tool.
 
@@ -19,12 +19,14 @@ From this directory:
 
 ```bash
 kubectl apply -f greeter.yaml
+kubectl apply -f otel-collector.yaml
 kubectl apply -f gateway.yaml
 kubectl rollout status deployment/greeter
+kubectl rollout status deployment/otel-collector
 kubectl rollout status deployment/mcp-grpc-gateway
 ```
 
-The greeter is available inside the cluster at `greeter:50051`. The gateway is available inside the cluster at `mcp-grpc-gateway:8080`.
+The greeter is available inside the cluster at `greeter:50051`. The dummy OpenTelemetry endpoint is available inside the cluster at `otel-collector:4317`. The gateway is available inside the cluster at `mcp-grpc-gateway:8080`.
 
 ## Port Forward
 
@@ -76,9 +78,20 @@ The greeter logs should also show that `Authorization` metadata was present. The
 kubectl logs deployment/greeter
 ```
 
+## Check Telemetry
+
+The gateway is configured with `--otel-endpoint otel-collector:4317 --otel-insecure`. The collector uses the debug exporter, so received spans are printed to its logs.
+
+```bash
+kubectl logs deployment/otel-collector
+```
+
+After the gateway starts or reloads reflected tools, you should see trace output that includes a `toolcache.reload` span.
+
 ## Clean Up
 
 ```bash
 kubectl delete -f gateway.yaml
+kubectl delete -f otel-collector.yaml
 kubectl delete -f greeter.yaml
 ```

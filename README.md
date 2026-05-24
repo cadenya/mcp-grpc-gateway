@@ -14,6 +14,14 @@ mcp-grpc-gateway --addr 0.0.0.0:8080 --grpc-host your-grpc-service:50051 --path 
 
 This will start a server that listens on port 8080, reads the reflected RPC definitions at `your-grpc-service:50051`, and hosts your MCP endpoint at `/mcp`.
 
+## Local CLI
+
+If, for whatever reason, you want to run this locally, you can use `go install` from the repository root to install it:
+
+```bash
+go install ./cmd/mcp-grpc-gateway
+```
+
 ## Docker
 
 The project publishes a distroless, non-root Docker image to Docker Hub:

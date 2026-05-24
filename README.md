@@ -55,6 +55,27 @@ If you want developers to explicitly disclose which RPCs become MCP tools, start
 mcp-grpc-gateway --grpc-host your-grpc-service:50051 --service "yourapp.v1.Service" --require-tool-annotations
 ```
 
+## Publishing Protos
+
+The annotations live in this repository under `proto/grpcmcpgateway/v1/annotations.proto`. The Buf module is named in `buf.yaml` so it can be published to the Buf Schema Registry.
+
+To publish from a developer machine:
+
+```bash
+buf registry login
+buf push
+```
+
+The GitHub Actions workflow also runs `buf push` on pushes to `main`. To enable it, create a Buf API token and add it to this GitHub repository as an Actions secret named `BUF_TOKEN`.
+
+Consumers can import the annotations from the BSR module declared in `buf.yaml`:
+
+```yaml
+version: v2
+deps:
+  - buf.build/cadenya-agents/mcp-grpc-gateway
+```
+
 ## Tool Snapshot Reloads
 
 The gateway keeps a reflected snapshot of your gRPC service and periodically reloads it. When a reload succeeds, new MCP sessions use the new tool set. When reflection fails during a rolling deploy, the gateway keeps serving the last known-good snapshot.

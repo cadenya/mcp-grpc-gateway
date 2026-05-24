@@ -34,6 +34,7 @@ type config struct {
 	otelEndpoint           string
 	otelInsecure           bool
 	requireToolAnnotations bool
+	forwardHeaders         []string
 }
 
 func main() {
@@ -100,6 +101,10 @@ func newCommand(action func(context.Context, config) error) *cli.Command {
 				Name:  "require-tool-annotations",
 				Usage: "only expose RPCs that have grpcmcpgateway.v1.tool annotations",
 			},
+			&cli.StringSliceFlag{
+				Name:  "forward-header",
+				Usage: "HTTP header to forward as gRPC metadata on tool calls; may be repeated",
+			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			cfg, err := configFromCommand(cmd)
@@ -124,6 +129,7 @@ func configFromCommand(cmd *cli.Command) (config, error) {
 		otelEndpoint:           cmd.String("otel-endpoint"),
 		otelInsecure:           cmd.Bool("otel-insecure"),
 		requireToolAnnotations: cmd.Bool("require-tool-annotations"),
+		forwardHeaders:         cmd.StringSlice("forward-header"),
 	}
 	if cfg.path == "" {
 		cfg.path = "/mcp"
@@ -184,7 +190,7 @@ func run(ctx context.Context, cfg config) error {
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle(cfg.path, mcphttp.NewHandler(cache, logger))
+	mux.Handle(cfg.path, mcphttp.NewHandler(cache, logger, mcphttp.WithForwardHeaders(cfg.forwardHeaders)))
 
 	listener, err := net.Listen("tcp", cfg.addr)
 	if err != nil {

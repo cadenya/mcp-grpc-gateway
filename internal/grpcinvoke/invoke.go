@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"cadenya.com/mcp-grpc-gateway/internal/forwardmetadata"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -45,6 +46,7 @@ func InvokeUnary(ctx context.Context, conn grpc.ClientConnInterface, method prot
 
 	resp := dynamicpb.NewMessage(method.Output())
 	fullMethod := fmt.Sprintf("/%s/%s", method.Parent().FullName(), method.Name())
+	ctx = forwardmetadata.AppendToOutgoingContext(ctx)
 	if err := conn.Invoke(ctx, fullMethod, req, resp); err != nil {
 		return nil, spanError(span, fmt.Errorf("invoke %s: %w", fullMethod, err))
 	}

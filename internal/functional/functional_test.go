@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/reflection"
 	reflectionv1alpha "google.golang.org/grpc/reflection/grpc_reflection_v1alpha"
 	"google.golang.org/protobuf/proto"
@@ -185,14 +186,61 @@ func TestRequireToolAnnotationsStillExposesAnnotatedTools(t *testing.T) {
 	require.Equal(t, "greet_user", tools[0].Name)
 }
 
+func TestForwardHeaderReachesGRPCMetadata(t *testing.T) {
+	ctx := context.Background()
+	seenAuthorization := make(chan string, 1)
+	grpcAddr, stopGRPC := startGreeterGRPCServerWith(t, &greeterServer{seenAuthorization: seenAuthorization})
+	defer stopGRPC()
+
+	grpcClient, err := grpc.NewClient(grpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+	defer grpcClient.Close()
+
+	cache := toolcache.New(toolcache.Options{
+		Conn:    grpcClient,
+		Service: "functional.v1.GreeterService",
+	})
+	require.NoError(t, cache.Reload(ctx))
+
+	httpServer := httptest.NewServer(mcphttp.NewHandler(cache, nil, mcphttp.WithForwardHeaders([]string{"Authorization"})))
+	defer httpServer.Close()
+
+	mcpClient := mcp.NewClient(&mcp.Implementation{Name: "functional-client", Version: "test"}, nil)
+	session, err := mcpClient.Connect(ctx, &mcp.StreamableClientTransport{
+		Endpoint: httpServer.URL,
+		HTTPClient: &http.Client{Transport: headerTransport{
+			base: httpServer.Client().Transport,
+			key:  "Authorization",
+			val:  "Bearer test-token",
+		}},
+		DisableStandaloneSSE: true,
+	}, nil)
+	require.NoError(t, err)
+	defer session.Close()
+
+	result, err := session.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "greet_user",
+		Arguments: map[string]any{"name": "Ada"},
+	})
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+	require.Equal(t, "Bearer test-token", <-seenAuthorization)
+}
+
 func startGreeterGRPCServer(t *testing.T) (string, func()) {
+	t.Helper()
+
+	return startGreeterGRPCServerWith(t, &greeterServer{})
+}
+
+func startGreeterGRPCServerWith(t *testing.T, greeter testpb.GreeterServiceServer) (string, func()) {
 	t.Helper()
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
 	server := grpc.NewServer()
-	testpb.RegisterGreeterServiceServer(server, &greeterServer{})
+	testpb.RegisterGreeterServiceServer(server, greeter)
 	reflection.Register(server)
 
 	go func() {
@@ -241,6 +289,7 @@ func assertStatelessHTTPInitialize(t *testing.T, httpServer *httptest.Server) {
 
 type greeterServer struct {
 	testpb.UnimplementedGreeterServiceServer
+	seenAuthorization chan<- string
 }
 
 type staticProvider struct {
@@ -251,8 +300,32 @@ func (p staticProvider) Current() *mcp.Server {
 	return p.server
 }
 
-func (greeterServer) Greet(_ context.Context, req *testpb.GreetRequest) (*testpb.GreetResponse, error) {
+func (g greeterServer) Greet(ctx context.Context, req *testpb.GreetRequest) (*testpb.GreetResponse, error) {
+	if g.seenAuthorization != nil {
+		values := metadata.ValueFromIncomingContext(ctx, "authorization")
+		if len(values) == 0 {
+			g.seenAuthorization <- ""
+		} else {
+			g.seenAuthorization <- values[0]
+		}
+	}
 	return &testpb.GreetResponse{Greeting: "Hello, " + req.GetName()}, nil
+}
+
+type headerTransport struct {
+	base http.RoundTripper
+	key  string
+	val  string
+}
+
+func (t headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	base := t.base
+	if base == nil {
+		base = http.DefaultTransport
+	}
+	req = req.Clone(req.Context())
+	req.Header.Set(t.key, t.val)
+	return base.RoundTrip(req)
 }
 
 func reflectedMethodOptions(t *testing.T, rawFiles [][]byte, filePath string, serviceName string, methodName string) *descriptorpb.MethodOptions {

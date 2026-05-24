@@ -24,7 +24,7 @@ docker run --rm -p 8080:8080 cadenyaagents/mcp-grpc-gateway:latest \
   --service "yourapp.v1.Service"
 ```
 
-The runtime image has no shell or package manager and runs as a non-root user. GitHub Actions builds the image for `linux/amd64` and `linux/arm64`, and pushes to `cadenyaagents/mcp-grpc-gateway` on `main` when `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` repository secrets are configured.
+The runtime image has no shell or package manager and runs as a non-root user.
 
 ## Releases
 
@@ -43,13 +43,32 @@ Docker tags: cadenyaagents/mcp-grpc-gateway:0.1.0, :0.1, :0, :latest, :sha-<comm
 Buf label: buf.build/cadenya-agents/mcp-grpc-gateway:v0.1.0
 ```
 
-The release workflow requires `BUF_TOKEN`, `DOCKERHUB_USERNAME`, and `DOCKERHUB_TOKEN` repository secrets.
-
 ## MCP Transport
 
 This gateway only supports stateless MCP over HTTP. It mounts the MCP Go SDK's Streamable HTTP transport with stateless JSON responses, so each request is handled independently and the gateway does not issue or require `Mcp-Session-Id` headers.
 
 The endpoint is intended for HTTP `POST` requests with JSON responses. It does not expose stdio, stateful SSE sessions, resumable streams, or event-store backed session recovery.
+
+## Forwarding Headers
+
+HTTP headers are not forwarded to gRPC by default. You can opt in to specific headers with `--forward-header`; each matching HTTP header is attached to the downstream gRPC request as metadata.
+
+```bash
+mcp-grpc-gateway \
+  --grpc-host your-grpc-service:50051 \
+  --service "yourapp.v1.Service" \
+  --forward-header Authorization
+```
+
+Repeat the flag to allow more headers:
+
+```bash
+mcp-grpc-gateway \
+  --grpc-host your-grpc-service:50051 \
+  --service "yourapp.v1.Service" \
+  --forward-header Authorization \
+  --forward-header X-Request-ID
+```
 
 ## Annotations
 
@@ -84,27 +103,6 @@ If you want developers to explicitly disclose which RPCs become MCP tools, start
 
 ```bash
 mcp-grpc-gateway --grpc-host your-grpc-service:50051 --service "yourapp.v1.Service" --require-tool-annotations
-```
-
-## Publishing Protos
-
-The annotations live in this repository under `proto/grpcmcpgateway/v1/annotations.proto`. The Buf module is named in `buf.yaml` so it can be published to the Buf Schema Registry.
-
-To publish from a developer machine:
-
-```bash
-buf registry login
-buf push
-```
-
-The GitHub Actions workflow also runs `buf push` on pushes to `main`. To enable it, create a Buf API token and add it to this GitHub repository as an Actions secret named `BUF_TOKEN`.
-
-Consumers can import the annotations from the BSR module declared in `buf.yaml`:
-
-```yaml
-version: v2
-deps:
-  - buf.build/cadenya-agents/mcp-grpc-gateway
 ```
 
 ## Buf Examples

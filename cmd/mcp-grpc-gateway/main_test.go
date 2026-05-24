@@ -37,6 +37,7 @@ func TestCommandDefaultsAndNormalizesPath(t *testing.T) {
 	require.Equal(t, "text", got.logFormat)
 	require.Empty(t, got.otelEndpoint)
 	require.False(t, got.requireToolAnnotations)
+	require.Empty(t, got.forwardHeaders)
 }
 
 func TestCommandRequiresGRPCHostAndService(t *testing.T) {
@@ -118,6 +119,25 @@ func TestCommandParsesRequireToolAnnotations(t *testing.T) {
 
 	require.NoError(t, err)
 	require.True(t, got.requireToolAnnotations)
+}
+
+func TestCommandParsesForwardHeaders(t *testing.T) {
+	var got config
+	cmd := newCommand(func(_ context.Context, cfg config) error {
+		got = cfg
+		return nil
+	})
+
+	err := cmd.Run(context.Background(), []string{
+		"mcp-grpc-gateway",
+		"--grpc-host", "localhost:50051",
+		"--service", "test.v1.Service",
+		"--forward-header", "Authorization",
+		"--forward-header", "X-Request-ID",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"Authorization", "X-Request-ID"}, got.forwardHeaders)
 }
 
 func TestServeHTTPShutsDownWhenContextIsCanceled(t *testing.T) {

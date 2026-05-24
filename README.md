@@ -1,8 +1,12 @@
 # MCP gRPC Gateway
 
-MCP is a protocol that LLM toolchains natively support. gRPC is an excellent RPC framework that is supported by the most popular languages. Together, they can pair well to describe services with the server framework in gRPC with MCP as the tool discovery/execution protocol.
+<p align="center">
+  <img src="images/diagram.png" alt="MCP client calling MCP gRPC Gateway, which forwards to your gRPC service" width="520">
+</p>
 
-This project was designed to act as a gateway for MCP to your gRPC services. It uses protobuf annotations to describe MCP server and tool metadata, as well as gRPC reflection to discover tools. This pattern means that this gateway doesn't need to be redeployed for new tools to be discovered from your gRPC services.
+MCP gRPC Gateway exposes existing gRPC services as stateless MCP tools over HTTP. It connects to a downstream gRPC server, reads its live service descriptors through gRPC reflection, converts unary RPC request messages into JSON Schema tool inputs, and invokes the selected RPC when an MCP client calls the tool.
+
+The gateway is designed for teams that already describe service contracts in protobuf and want MCP support without hand-writing a parallel tool server. Protobuf annotations can provide MCP server metadata, tool names, and tool descriptions, while reflection lets the gateway reload tool definitions as services change. In practice, your gRPC service remains the source of truth and the gateway can pick up newly deployed tools without a gateway redeploy.
 
 ## Quick Start
 

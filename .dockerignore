@@ -1,0 +1,7 @@
+.git
+.github
+Dockerfile
+README.md
+tmp
+*.cover
+mcp-grpc-gateway

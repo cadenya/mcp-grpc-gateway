@@ -14,6 +14,18 @@ mcp-grpc-gateway --addr 0.0.0.0:8080 --grpc-host your-grpc-service:50051 --servi
 
 This will start a server that listens on port 8080, reads the RPC definitions at `your-grpc-service:50051`, and hosts your MCP endpoint at `/mcp`.
 
+## Docker
+
+The project publishes a distroless, non-root Docker image to Docker Hub:
+
+```bash
+docker run --rm -p 8080:8080 cadenyaagents/mcp-grpc-gateway:latest \
+  --grpc-host your-grpc-service:50051 \
+  --service "yourapp.v1.Service"
+```
+
+The runtime image has no shell or package manager and runs as a non-root user. GitHub Actions builds the image for `linux/amd64` and `linux/arm64`, and pushes to `cadenyaagents/mcp-grpc-gateway` on `main` when `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` repository secrets are configured.
+
 ## MCP Transport
 
 This gateway only supports stateless MCP over HTTP. It mounts the MCP Go SDK's Streamable HTTP transport with stateless JSON responses, so each request is handled independently and the gateway does not issue or require `Mcp-Session-Id` headers.

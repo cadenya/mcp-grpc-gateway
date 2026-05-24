@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1
-
 FROM --platform=$BUILDPLATFORM golang:1.26.1-alpine AS build
 
 WORKDIR /src

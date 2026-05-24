@@ -5,8 +5,9 @@ import (
 	"net/http"
 	"strings"
 
-	"go.cadenya.com/mcp-grpc-gateway/internal/forwardmetadata"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"go.cadenya.com/mcp-grpc-gateway/internal/forwardmetadata"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -38,10 +39,10 @@ func NewHandler(provider ServerProvider, logger *slog.Logger, opts ...HandlerOpt
 		JSONResponse: true,
 		Logger:       logger,
 	})
-	return forwardHeaderHandler{
+	return otelhttp.NewHandler(forwardHeaderHandler{
 		next:    handler,
 		headers: normalizedHeaders(cfg.forwardHeaders),
-	}
+	}, "mcp.http")
 }
 
 type forwardHeaderHandler struct {

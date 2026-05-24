@@ -17,6 +17,7 @@ import (
 	"go.cadenya.com/mcp-grpc-gateway/internal/mcphttp"
 	"go.cadenya.com/mcp-grpc-gateway/internal/telemetry"
 	"go.cadenya.com/mcp-grpc-gateway/internal/toolcache"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -275,7 +276,13 @@ func serveHTTP(ctx context.Context, server *http.Server, listener net.Listener, 
 
 func dialOptions(cfg config) []grpc.DialOption {
 	if cfg.tls {
-		return []grpc.DialOption{grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(nil, ""))}
+		return []grpc.DialOption{
+			grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(nil, "")),
+			grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
+		}
 	}
-	return []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
+	return []grpc.DialOption{
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
+	}
 }

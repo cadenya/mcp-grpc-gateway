@@ -94,8 +94,8 @@ func TestDialOptionsUseTLSOnlyWhenRequested(t *testing.T) {
 	plain := dialOptions(config{})
 	secure := dialOptions(config{tls: true})
 
-	require.Len(t, plain, 1)
-	require.Len(t, secure, 1)
+	require.Len(t, plain, 2)
+	require.Len(t, secure, 2)
 	require.NotEqual(t, plain[0], secure[0])
 }
 

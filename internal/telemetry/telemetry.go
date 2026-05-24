@@ -8,6 +8,7 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.37.0"
@@ -39,6 +40,8 @@ func Setup(ctx context.Context, cfg Config, out io.Writer) (*slog.Logger, func(c
 	}
 
 	logger := slog.New(handler)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
+
 	shutdown := func(context.Context) error { return nil }
 	if cfg.OTELEndpoint != "" {
 		exporterOpts := []otlptracegrpc.Option{

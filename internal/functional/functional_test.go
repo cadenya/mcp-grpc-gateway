@@ -16,6 +16,10 @@ import (
 	"go.cadenya.com/mcp-grpc-gateway/internal/mcphttp"
 	"go.cadenya.com/mcp-grpc-gateway/internal/testpb"
 	"go.cadenya.com/mcp-grpc-gateway/internal/toolcache"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
@@ -227,6 +231,64 @@ func TestForwardHeaderReachesGRPCMetadata(t *testing.T) {
 	require.Equal(t, "Bearer test-token", <-seenAuthorization)
 }
 
+func TestTraceContextPropagatesFromMCPHTTPToGRPCMetadata(t *testing.T) {
+	oldPropagator := otel.GetTextMapPropagator()
+	oldTracerProvider := otel.GetTracerProvider()
+	tracerProvider := sdktrace.NewTracerProvider()
+	otel.SetTracerProvider(tracerProvider)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
+	t.Cleanup(func() {
+		require.NoError(t, tracerProvider.Shutdown(context.Background()))
+		otel.SetTracerProvider(oldTracerProvider)
+		otel.SetTextMapPropagator(oldPropagator)
+	})
+
+	ctx := context.Background()
+	seenTraceparent := make(chan string, 1)
+	grpcAddr, stopGRPC := startGreeterGRPCServerWith(t, &greeterServer{seenTraceparent: seenTraceparent})
+	defer stopGRPC()
+
+	grpcClient, err := grpc.NewClient(
+		grpcAddr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
+	)
+	require.NoError(t, err)
+	defer grpcClient.Close()
+
+	cache := toolcache.New(toolcache.Options{
+		Conn:    grpcClient,
+		Service: "functional.v1.GreeterService",
+	})
+	require.NoError(t, cache.Reload(ctx))
+
+	httpServer := httptest.NewServer(mcphttp.NewHandler(cache, nil))
+	defer httpServer.Close()
+
+	mcpClient := mcp.NewClient(&mcp.Implementation{Name: "functional-client", Version: "test"}, nil)
+	session, err := mcpClient.Connect(ctx, &mcp.StreamableClientTransport{
+		Endpoint: httpServer.URL,
+		HTTPClient: &http.Client{Transport: headerTransport{
+			base: httpServer.Client().Transport,
+			key:  "traceparent",
+			val:  "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+		}},
+		DisableStandaloneSSE: true,
+	}, nil)
+	require.NoError(t, err)
+	defer session.Close()
+
+	result, err := session.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "greet_user",
+		Arguments: map[string]any{"name": "Ada"},
+	})
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	traceparent := <-seenTraceparent
+	require.Contains(t, traceparent, "00-4bf92f3577b34da6a3ce929d0e0e4736-")
+}
+
 func startGreeterGRPCServer(t *testing.T) (string, func()) {
 	t.Helper()
 
@@ -290,6 +352,7 @@ func assertStatelessHTTPInitialize(t *testing.T, httpServer *httptest.Server) {
 type greeterServer struct {
 	testpb.UnimplementedGreeterServiceServer
 	seenAuthorization chan<- string
+	seenTraceparent   chan<- string
 }
 
 type staticProvider struct {
@@ -307,6 +370,14 @@ func (g greeterServer) Greet(ctx context.Context, req *testpb.GreetRequest) (*te
 			g.seenAuthorization <- ""
 		} else {
 			g.seenAuthorization <- values[0]
+		}
+	}
+	if g.seenTraceparent != nil {
+		values := metadata.ValueFromIncomingContext(ctx, "traceparent")
+		if len(values) == 0 {
+			g.seenTraceparent <- ""
+		} else {
+			g.seenTraceparent <- values[0]
 		}
 	}
 	return &testpb.GreetResponse{Greeting: "Hello, " + req.GetName()}, nil

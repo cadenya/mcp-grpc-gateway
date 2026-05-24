@@ -216,7 +216,7 @@ Supported log levels are `debug`, `info`, `warn`, and `error`. Supported formats
 
 ## OpenTelemetry
 
-Tracing is disabled unless an OTLP gRPC endpoint is configured. When enabled, the gateway emits spans for tool snapshot reloads and downstream gRPC tool calls.
+Tracing is disabled unless an OTLP gRPC endpoint is configured. When enabled, the gateway emits spans for tool snapshot reloads, MCP HTTP requests, and downstream gRPC tool calls.
 
 ```bash
 mcp-grpc-gateway \
@@ -232,3 +232,5 @@ mcp-grpc-gateway \
   --otel-endpoint localhost:4317 \
   --otel-insecure
 ```
+
+The gateway uses W3C Trace Context and Baggage propagation. Incoming MCP HTTP request headers such as `traceparent`, `tracestate`, and `baggage` are extracted, and trace context is injected into downstream gRPC metadata for tool calls.

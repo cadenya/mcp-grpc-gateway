@@ -1,0 +1,24 @@
+services:
+  faker:
+    build:
+      context: ../..
+      dockerfile: examples/faker/Dockerfile
+    expose:
+      - "50051"
+
+  gateway:
+    image: cadenyaagents/mcp-grpc-gateway:latest
+    depends_on:
+      - faker
+    command:
+      - --addr
+      - 0.0.0.0:8080
+      - --grpc-host
+      - faker:50051
+      - --service
+      - examples.faker.v1.FakerService
+      - --require-tool-annotations
+      - --path
+      - /mcp/faker
+    ports:
+      - "8080:8080"

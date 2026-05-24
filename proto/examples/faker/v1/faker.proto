@@ -1,0 +1,56 @@
+syntax = "proto3";
+
+package examples.faker.v1;
+
+import "grpcmcpgateway/v1/annotations.proto";
+import "google/protobuf/struct.proto";
+
+option go_package = "go.cadenya.com/mcp-grpc-gateway/examples/faker/fakerpb;fakerpb";
+
+service FakerService {
+  rpc GetFakerOptions(GetFakerOptionsRequest) returns (GetFakerOptionsResponse) {
+    option (grpcmcpgateway.v1.tool) = {
+      name: "GetFakerOptions"
+      description: "Lists supported fake data generators. Use filter to narrow options by name, category, or description."
+    };
+  }
+
+  rpc GenerateFake(GenerateFakeRequest) returns (GenerateFakeResponse) {
+    option (grpcmcpgateway.v1.tool) = {
+      name: "GenerateFake"
+      description: "Generates one fake data value by faker option name."
+    };
+  }
+}
+
+message GetFakerOptionsRequest {
+  string filter = 1;
+}
+
+message FakerOption {
+  string name = 1;
+  string category = 2;
+  string description = 3;
+  repeated FakerArgument arguments = 4;
+}
+
+message FakerArgument {
+  string name = 1;
+  string type = 2;
+  string description = 3;
+  google.protobuf.Value default = 4;
+}
+
+message GetFakerOptionsResponse {
+  repeated FakerOption options = 1;
+}
+
+message GenerateFakeRequest {
+  string name = 1;
+  google.protobuf.Struct args = 2;
+}
+
+message GenerateFakeResponse {
+  string name = 1;
+  string value = 2;
+}

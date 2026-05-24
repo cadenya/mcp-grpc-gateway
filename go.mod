@@ -3,6 +3,7 @@ module go.cadenya.com/mcp-grpc-gateway
 go 1.26.3
 
 require (
+	github.com/jaswdr/faker/v2 v2.9.1
 	github.com/modelcontextprotocol/go-sdk v1.6.1
 	github.com/stretchr/testify v1.11.1
 	github.com/urfave/cli/v3 v3.9.0

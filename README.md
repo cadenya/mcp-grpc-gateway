@@ -88,6 +88,49 @@ deps:
   - buf.build/cadenya-agents/mcp-grpc-gateway
 ```
 
+## Buf Examples
+
+To use the annotations from another Buf-managed gRPC service:
+
+1. Add the dependency to your `buf.yaml`.
+
+```yaml
+version: v2
+deps:
+  - buf.build/cadenya-agents/mcp-grpc-gateway
+```
+
+2. Update your Buf dependencies.
+
+```bash
+buf dep update
+```
+
+3. Import the annotations in your service proto.
+
+```proto
+import "grpcmcpgateway/v1/annotations.proto";
+```
+
+4. Add MCP server and tool annotations.
+
+```proto
+service ObjectivesService {
+  option (grpcmcpgateway.v1.server) = {
+    name: "objectives"
+    title: "Objectives"
+    version: "1.0.0"
+  };
+
+  rpc ListObjectives(ListObjectivesRequest) returns (ListObjectivesResponse) {
+    option (grpcmcpgateway.v1.tool) = {
+      name: "list_objectives"
+      description: "Lists objectives for the current workspace."
+    };
+  }
+}
+```
+
 ## Tool Snapshot Reloads
 
 The gateway keeps a reflected snapshot of your gRPC service and periodically reloads it. When a reload succeeds, new MCP sessions use the new tool set. When reflection fails during a rolling deploy, the gateway keeps serving the last known-good snapshot.

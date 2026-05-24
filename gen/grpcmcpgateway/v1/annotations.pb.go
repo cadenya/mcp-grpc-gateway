@@ -218,35 +218,93 @@ func (x *Tool) GetDescription() string {
 	return ""
 }
 
+type Field struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Description   string                 `protobuf:"bytes,1,opt,name=description,proto3" json:"description,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Field) Reset() {
+	*x = Field{}
+	mi := &file_grpcmcpgateway_v1_annotations_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Field) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Field) ProtoMessage() {}
+
+func (x *Field) ProtoReflect() protoreflect.Message {
+	mi := &file_grpcmcpgateway_v1_annotations_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Field.ProtoReflect.Descriptor instead.
+func (*Field) Descriptor() ([]byte, []int) {
+	return file_grpcmcpgateway_v1_annotations_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *Field) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
 var file_grpcmcpgateway_v1_annotations_proto_extTypes = []protoimpl.ExtensionInfo{
 	{
 		ExtendedType:  (*descriptorpb.ServiceOptions)(nil),
 		ExtensionType: (*Server)(nil),
-		Field:         51000,
+		Field:         80083,
 		Name:          "grpcmcpgateway.v1.server",
-		Tag:           "bytes,51000,opt,name=server",
+		Tag:           "bytes,80083,opt,name=server",
 		Filename:      "grpcmcpgateway/v1/annotations.proto",
 	},
 	{
 		ExtendedType:  (*descriptorpb.MethodOptions)(nil),
 		ExtensionType: (*Tool)(nil),
-		Field:         51001,
+		Field:         80084,
 		Name:          "grpcmcpgateway.v1.tool",
-		Tag:           "bytes,51001,opt,name=tool",
+		Tag:           "bytes,80084,opt,name=tool",
+		Filename:      "grpcmcpgateway/v1/annotations.proto",
+	},
+	{
+		ExtendedType:  (*descriptorpb.FieldOptions)(nil),
+		ExtensionType: (*Field)(nil),
+		Field:         80085,
+		Name:          "grpcmcpgateway.v1.field",
+		Tag:           "bytes,80085,opt,name=field",
 		Filename:      "grpcmcpgateway/v1/annotations.proto",
 	},
 }
 
 // Extension fields to descriptorpb.ServiceOptions.
 var (
-	// optional grpcmcpgateway.v1.Server server = 51000;
+	// optional grpcmcpgateway.v1.Server server = 80083;
 	E_Server = &file_grpcmcpgateway_v1_annotations_proto_extTypes[0]
 )
 
 // Extension fields to descriptorpb.MethodOptions.
 var (
-	// optional grpcmcpgateway.v1.Tool tool = 51001;
+	// optional grpcmcpgateway.v1.Tool tool = 80084;
 	E_Tool = &file_grpcmcpgateway_v1_annotations_proto_extTypes[1]
+)
+
+// Extension fields to descriptorpb.FieldOptions.
+var (
+	// optional grpcmcpgateway.v1.Field field = 80085;
+	E_Field = &file_grpcmcpgateway_v1_annotations_proto_extTypes[2]
 )
 
 var File_grpcmcpgateway_v1_annotations_proto protoreflect.FileDescriptor
@@ -268,9 +326,12 @@ const file_grpcmcpgateway_v1_annotations_proto_rawDesc = "" +
 	"\x05sizes\x18\x03 \x03(\tR\x05sizes\"<\n" +
 	"\x04Tool\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12 \n" +
-	"\vdescription\x18\x02 \x01(\tR\vdescription:T\n" +
-	"\x06server\x12\x1f.google.protobuf.ServiceOptions\x18\xb8\x8e\x03 \x01(\v2\x19.grpcmcpgateway.v1.ServerR\x06server:M\n" +
-	"\x04tool\x12\x1e.google.protobuf.MethodOptions\x18\xb9\x8e\x03 \x01(\v2\x17.grpcmcpgateway.v1.ToolR\x04toolBEZCcadenya.com/mcp-grpc-gateway/gen/grpcmcpgateway/v1;grpcmcpgatewayv1b\x06proto3"
+	"\vdescription\x18\x02 \x01(\tR\vdescription\")\n" +
+	"\x05Field\x12 \n" +
+	"\vdescription\x18\x01 \x01(\tR\vdescription:T\n" +
+	"\x06server\x12\x1f.google.protobuf.ServiceOptions\x18\xd3\xf1\x04 \x01(\v2\x19.grpcmcpgateway.v1.ServerR\x06server:M\n" +
+	"\x04tool\x12\x1e.google.protobuf.MethodOptions\x18\xd4\xf1\x04 \x01(\v2\x17.grpcmcpgateway.v1.ToolR\x04tool:O\n" +
+	"\x05field\x12\x1d.google.protobuf.FieldOptions\x18\xd5\xf1\x04 \x01(\v2\x18.grpcmcpgateway.v1.FieldR\x05fieldBEZCcadenya.com/mcp-grpc-gateway/gen/grpcmcpgateway/v1;grpcmcpgatewayv1b\x06proto3"
 
 var (
 	file_grpcmcpgateway_v1_annotations_proto_rawDescOnce sync.Once
@@ -284,24 +345,28 @@ func file_grpcmcpgateway_v1_annotations_proto_rawDescGZIP() []byte {
 	return file_grpcmcpgateway_v1_annotations_proto_rawDescData
 }
 
-var file_grpcmcpgateway_v1_annotations_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_grpcmcpgateway_v1_annotations_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_grpcmcpgateway_v1_annotations_proto_goTypes = []any{
 	(*Server)(nil),                      // 0: grpcmcpgateway.v1.Server
 	(*Icon)(nil),                        // 1: grpcmcpgateway.v1.Icon
 	(*Tool)(nil),                        // 2: grpcmcpgateway.v1.Tool
-	(*descriptorpb.ServiceOptions)(nil), // 3: google.protobuf.ServiceOptions
-	(*descriptorpb.MethodOptions)(nil),  // 4: google.protobuf.MethodOptions
+	(*Field)(nil),                       // 3: grpcmcpgateway.v1.Field
+	(*descriptorpb.ServiceOptions)(nil), // 4: google.protobuf.ServiceOptions
+	(*descriptorpb.MethodOptions)(nil),  // 5: google.protobuf.MethodOptions
+	(*descriptorpb.FieldOptions)(nil),   // 6: google.protobuf.FieldOptions
 }
 var file_grpcmcpgateway_v1_annotations_proto_depIdxs = []int32{
 	1, // 0: grpcmcpgateway.v1.Server.icons:type_name -> grpcmcpgateway.v1.Icon
-	3, // 1: grpcmcpgateway.v1.server:extendee -> google.protobuf.ServiceOptions
-	4, // 2: grpcmcpgateway.v1.tool:extendee -> google.protobuf.MethodOptions
-	0, // 3: grpcmcpgateway.v1.server:type_name -> grpcmcpgateway.v1.Server
-	2, // 4: grpcmcpgateway.v1.tool:type_name -> grpcmcpgateway.v1.Tool
-	5, // [5:5] is the sub-list for method output_type
-	5, // [5:5] is the sub-list for method input_type
-	3, // [3:5] is the sub-list for extension type_name
-	1, // [1:3] is the sub-list for extension extendee
+	4, // 1: grpcmcpgateway.v1.server:extendee -> google.protobuf.ServiceOptions
+	5, // 2: grpcmcpgateway.v1.tool:extendee -> google.protobuf.MethodOptions
+	6, // 3: grpcmcpgateway.v1.field:extendee -> google.protobuf.FieldOptions
+	0, // 4: grpcmcpgateway.v1.server:type_name -> grpcmcpgateway.v1.Server
+	2, // 5: grpcmcpgateway.v1.tool:type_name -> grpcmcpgateway.v1.Tool
+	3, // 6: grpcmcpgateway.v1.field:type_name -> grpcmcpgateway.v1.Field
+	7, // [7:7] is the sub-list for method output_type
+	7, // [7:7] is the sub-list for method input_type
+	4, // [4:7] is the sub-list for extension type_name
+	1, // [1:4] is the sub-list for extension extendee
 	0, // [0:1] is the sub-list for field type_name
 }
 
@@ -316,8 +381,8 @@ func file_grpcmcpgateway_v1_annotations_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_grpcmcpgateway_v1_annotations_proto_rawDesc), len(file_grpcmcpgateway_v1_annotations_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   3,
-			NumExtensions: 2,
+			NumMessages:   4,
+			NumExtensions: 3,
 			NumServices:   0,
 		},
 		GoTypes:           file_grpcmcpgateway_v1_annotations_proto_goTypes,

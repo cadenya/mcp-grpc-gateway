@@ -26,10 +26,18 @@ message Tool {
   string description = 2;
 }
 
+message Field {
+  string description = 1;
+}
+
 extend google.protobuf.ServiceOptions {
-  Server server = 51000;
+  Server server = 80083;
 }
 
 extend google.protobuf.MethodOptions {
-  Tool tool = 51001;
+  Tool tool = 80084;
+}
+
+extend google.protobuf.FieldOptions {
+  Field field = 80085;
 }

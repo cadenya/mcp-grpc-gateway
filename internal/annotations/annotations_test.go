@@ -92,7 +92,7 @@ func (s *MetadataSuite) SetupSuite() {
 		Extension: []*descriptorpb.FieldDescriptorProto{
 			{
 				Name:     ptr("server"),
-				Number:   ptr[int32](51000),
+				Number:   ptr[int32](80083),
 				Label:    &optional,
 				Type:     &typeMessage,
 				TypeName: ptr(".grpcmcpgateway.v1.Server"),
@@ -101,7 +101,7 @@ func (s *MetadataSuite) SetupSuite() {
 			},
 			{
 				Name:     ptr("tool"),
-				Number:   ptr[int32](51001),
+				Number:   ptr[int32](80084),
 				Label:    &optional,
 				Type:     &typeMessage,
 				TypeName: ptr(".grpcmcpgateway.v1.Tool"),

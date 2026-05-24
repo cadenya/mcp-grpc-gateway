@@ -212,10 +212,10 @@ const file_functional_v1_greeter_proto_rawDesc = "" +
 	"\x16WatchGreetingsResponse\x12\x1a\n" +
 	"\bgreeting\x18\x01 \x01(\tR\bgreeting2\xcb\x02\n" +
 	"\x0eGreeterService\x12k\n" +
-	"\x05Greet\x12\x1b.functional.v1.GreetRequest\x1a\x1c.functional.v1.GreetResponse\"'\xca\xf3\x18#\n" +
+	"\x05Greet\x12\x1b.functional.v1.GreetRequest\x1a\x1c.functional.v1.GreetResponse\"'\xa2\x8d'#\n" +
 	"\n" +
 	"greet_user\x12\x15Greets a user by name\x12_\n" +
-	"\x0eWatchGreetings\x12$.functional.v1.WatchGreetingsRequest\x1a%.functional.v1.WatchGreetingsResponse0\x01\x1ak\xc2\xf3\x18g\n" +
+	"\x0eWatchGreetings\x12$.functional.v1.WatchGreetingsRequest\x1a%.functional.v1.WatchGreetingsResponse0\x01\x1ak\x9a\x8d'g\n" +
 	"\agreeter\x12\x0fGreeter Service\x1a\x051.0.0\"'Use this server to greet users by name.*\x1bhttps://example.com/greeterB5Z3cadenya.com/mcp-grpc-gateway/internal/testpb;testpbb\x06proto3"
 
 var (

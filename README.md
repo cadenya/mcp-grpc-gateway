@@ -26,6 +26,25 @@ docker run --rm -p 8080:8080 cadenyaagents/mcp-grpc-gateway:latest \
 
 The runtime image has no shell or package manager and runs as a non-root user. GitHub Actions builds the image for `linux/amd64` and `linux/arm64`, and pushes to `cadenyaagents/mcp-grpc-gateway` on `main` when `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` repository secrets are configured.
 
+## Releases
+
+GitHub releases are driven by tags. Pushing a `v*` tag runs GoReleaser, publishes release archives and checksums, pushes Docker release tags, and labels the Buf module with the same tag.
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+For `v0.1.0`, the release workflow publishes:
+
+```text
+GitHub release: v0.1.0
+Docker tags: cadenyaagents/mcp-grpc-gateway:0.1.0, :0.1, :0, :latest, :sha-<commit>
+Buf label: buf.build/cadenya-agents/mcp-grpc-gateway:v0.1.0
+```
+
+The release workflow requires `BUF_TOKEN`, `DOCKERHUB_USERNAME`, and `DOCKERHUB_TOKEN` repository secrets.
+
 ## MCP Transport
 
 This gateway only supports stateless MCP over HTTP. It mounts the MCP Go SDK's Streamable HTTP transport with stateless JSON responses, so each request is handled independently and the gateway does not issue or require `Mcp-Session-Id` headers.

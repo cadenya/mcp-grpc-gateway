@@ -1,0 +1,55 @@
+version: 2
+
+project_name: mcp-grpc-gateway
+
+builds:
+  - id: mcp-grpc-gateway
+    main: ./cmd/mcp-grpc-gateway
+    binary: mcp-grpc-gateway
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: mcp-grpc-gateway
+    ids:
+      - mcp-grpc-gateway
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- .Arch }}
+    files:
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+
+release:
+  github:
+    owner: cadenya
+    name: mcp-grpc-gateway

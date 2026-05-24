@@ -1,8 +1,8 @@
 # MCP gRPC Gateway
 
-MCP is a protocol that LLM toolchains natively support. gRPC is an excellent RPC framework that is supported by the most popular languages. Together, they can pair well describe services with the server framework in gRPC with MCP as the tool discovery/execution protocol.
+MCP is a protocol that LLM toolchains natively support. gRPC is an excellent RPC framework that is supported by the most popular languages. Together, they can pair well to describe services with the server framework in gRPC with MCP as the tool discovery/execution protocol.
 
-This project was designed to act as a gateway for MCP to your gRPC services. It uses protobuf annotations to describe tool names and descriptions for RPC descritors, as well as gRPC reflection to discover tools. This pattern means that this gateway doesn't need to be redployed for new tools to be discovered from your gRPC services.
+This project was designed to act as a gateway for MCP to your gRPC services. It uses protobuf annotations to describe MCP server and tool metadata, as well as gRPC reflection to discover tools. This pattern means that this gateway doesn't need to be redeployed for new tools to be discovered from your gRPC services.
 
 ## Quick Start
 
@@ -12,11 +12,11 @@ To run this as a binary, you can run:
 mcp-grpc-gateway --addr 0.0.0.0:8080 --grpc-host your-grpc-service:50051 --service "youapp.v1.Service" --path "/mcp"
 ```
 
-This will start a server that listens on port 8080, and will read the RPC definitions at `your-grpc-service:50051` and host your MCP endpoint at `/mcp`.
+This will start a server that listens on port 8080, reads the RPC definitions at `your-grpc-service:50051`, and hosts your MCP endpoint at `/mcp`.
 
 ## Annotations
 
-By default your RPC definitions in your gRPC endpoint will be exposed 1:1 for RPC names as tools. You can override this behavior (and add tool descriptions for LLMs to use) with annotations.
+By default your RPC definitions in your gRPC endpoint will be exposed 1:1 for RPC names as tools. You can override this behavior, add tool descriptions for LLMs, and configure MCP server metadata with annotations.
 
 ```proto
 syntax = "proto3";
@@ -26,11 +26,66 @@ package yourapp.v1;
 import "grpcmcpgateway/v1/annotations.proto";
 
 service Service {
+  option (grpcmcpgateway.v1.server) = {
+    name: "objectives"
+    title: "Objectives"
+    version: "1.0.0"
+    instructions: "Use these tools to inspect recent workspace objectives."
+    website_url: "https://yourapp.example.com"
+  };
+
   rpc GetRecentObjectives(RecentObjectivesRequest) returns (ObjectiveObjectivesResponse) {
-    option (grpcmcpgateway.v1.Tool) = {
-      name: "RecentObjectives"
+    option (grpcmcpgateway.v1.tool) = {
+      name: "recent_objectives"
       description: "Retrieves all of the recent objectives for the workspace that is authenticated"
     };
   }
 }
+```
+
+## Tool Snapshot Reloads
+
+The gateway keeps a reflected snapshot of your gRPC service and periodically reloads it. When a reload succeeds, new MCP sessions use the new tool set. When reflection fails during a rolling deploy, the gateway keeps serving the last known-good snapshot.
+
+By default snapshots reload every minute:
+
+```bash
+mcp-grpc-gateway --grpc-host your-grpc-service:50051 --service "yourapp.v1.Service" --reload-interval 1m
+```
+
+You can disable background reloads by setting the interval to `0`:
+
+```bash
+mcp-grpc-gateway --grpc-host your-grpc-service:50051 --service "yourapp.v1.Service" --reload-interval 0
+```
+
+## Logging
+
+The gateway logs with Go's structured `slog` package. Logs are written to stderr, with `text` output by default.
+
+```bash
+mcp-grpc-gateway --grpc-host your-grpc-service:50051 --service "yourapp.v1.Service" --log-level debug --log-format json
+```
+
+Supported log levels are `debug`, `info`, `warn`, and `error`. Supported formats are `text` and `json`.
+
+## OpenTelemetry
+
+Tracing is disabled unless an OTLP gRPC endpoint is configured. When enabled, the gateway emits spans for tool snapshot reloads and downstream gRPC tool calls.
+
+```bash
+mcp-grpc-gateway \
+  --grpc-host your-grpc-service:50051 \
+  --service "yourapp.v1.Service" \
+  --otel-endpoint collector:4317
+```
+
+For local collectors that do not use TLS, add `--otel-insecure`:
+
+```bash
+mcp-grpc-gateway \
+  --grpc-host your-grpc-service:50051 \
+  --service "yourapp.v1.Service" \
+  --otel-endpoint localhost:4317 \
+  --otel-insecure
 ```

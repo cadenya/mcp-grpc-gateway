@@ -1,0 +1,24 @@
+services:
+  greeter:
+    build:
+      context: ../..
+      dockerfile: examples/docker-compose/greeter/Dockerfile
+    expose:
+      - "50051"
+
+  gateway:
+    image: cadenyaagents/mcp-grpc-gateway:latest
+    depends_on:
+      - greeter
+    command:
+      - --addr
+      - 0.0.0.0:8080
+      - --grpc-host
+      - greeter:50051
+      - --service
+      - functional.v1.GreeterService
+      - --require-tool-annotations
+      - --forward-header
+      - Authorization
+    ports:
+      - "8080:8080"

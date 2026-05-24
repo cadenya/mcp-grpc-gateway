@@ -43,6 +43,12 @@ service Service {
 }
 ```
 
+If you want developers to explicitly disclose which RPCs become MCP tools, start the gateway with `--require-tool-annotations`. In that mode, only unary RPCs with `grpcmcpgateway.v1.tool` annotations are exposed.
+
+```bash
+mcp-grpc-gateway --grpc-host your-grpc-service:50051 --service "yourapp.v1.Service" --require-tool-annotations
+```
+
 ## Tool Snapshot Reloads
 
 The gateway keeps a reflected snapshot of your gRPC service and periodically reloads it. When a reload succeeds, new MCP sessions use the new tool set. When reflection fails during a rolling deploy, the gateway keeps serving the last known-good snapshot.

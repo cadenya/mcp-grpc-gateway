@@ -22,6 +22,7 @@ var serverExtensionNames = []protoreflect.FullName{
 type ToolMetadata struct {
 	Name        string
 	Description string
+	Annotated   bool
 }
 
 type ServerMetadata struct {
@@ -71,6 +72,7 @@ func ForMethod(method protoreflect.MethodDescriptor) ToolMetadata {
 	options := method.Options().(*descriptorpb.MethodOptions)
 
 	if meta, ok := fromRegisteredExtension(meta, options); ok {
+		meta.Annotated = true
 		return meta
 	}
 
@@ -85,7 +87,9 @@ func ForMethod(method protoreflect.MethodDescriptor) ToolMetadata {
 		if !unmarshalUnknownExtension(options.ProtoReflect().GetUnknown(), ext, msg) {
 			return meta
 		}
-		return applyToolMessage(meta, msg)
+		meta = applyToolMessage(meta, msg)
+		meta.Annotated = true
+		return meta
 	}
 	value := proto.GetExtension(options, extType)
 	protoMsg, ok := value.(proto.Message)
@@ -97,7 +101,9 @@ func ForMethod(method protoreflect.MethodDescriptor) ToolMetadata {
 		return meta
 	}
 
-	return applyToolMessage(meta, msg)
+	meta = applyToolMessage(meta, msg)
+	meta.Annotated = true
+	return meta
 }
 
 func fromRegisteredServerExtension(meta ServerMetadata, options *descriptorpb.ServiceOptions) (ServerMetadata, bool) {

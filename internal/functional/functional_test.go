@@ -158,6 +158,34 @@ func TestMCPEndpointKeepsCachedToolsWhenReflectionReloadFails(t *testing.T) {
 	require.Equal(t, "greet_user", tools[0].Name)
 }
 
+func TestRequireToolAnnotationsStillExposesAnnotatedTools(t *testing.T) {
+	ctx := context.Background()
+	grpcAddr, stopGRPC := startGreeterGRPCServer(t)
+	defer stopGRPC()
+
+	grpcClient, err := grpc.NewClient(grpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+	defer grpcClient.Close()
+
+	cache := toolcache.New(toolcache.Options{
+		Conn:                   grpcClient,
+		Service:                "functional.v1.GreeterService",
+		RequireToolAnnotations: true,
+	})
+	require.NoError(t, cache.Reload(ctx))
+
+	session := connectHTTPMCP(t, cache)
+	defer session.Close()
+
+	var tools []*mcp.Tool
+	for tool, err := range session.Tools(ctx, nil) {
+		require.NoError(t, err)
+		tools = append(tools, tool)
+	}
+	require.Len(t, tools, 1)
+	require.Equal(t, "greet_user", tools[0].Name)
+}
+
 func startGreeterGRPCServer(t *testing.T) (string, func()) {
 	t.Helper()
 
@@ -176,6 +204,24 @@ func startGreeterGRPCServer(t *testing.T) (string, func()) {
 		server.Stop()
 		_ = listener.Close()
 	}
+}
+
+func connectHTTPMCP(t *testing.T, cache *toolcache.Cache) *mcp.ClientSession {
+	t.Helper()
+
+	httpServer := httptest.NewServer(mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
+		return cache.Current()
+	}, &mcp.StreamableHTTPOptions{JSONResponse: true}))
+	t.Cleanup(httpServer.Close)
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "functional-client", Version: "test"}, nil)
+	session, err := client.Connect(context.Background(), &mcp.StreamableClientTransport{
+		Endpoint:             httpServer.URL,
+		HTTPClient:           httpServer.Client(),
+		DisableStandaloneSSE: true,
+	}, nil)
+	require.NoError(t, err)
+	return session
 }
 
 type greeterServer struct {

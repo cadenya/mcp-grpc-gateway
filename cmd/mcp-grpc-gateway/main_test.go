@@ -32,6 +32,7 @@ func TestCommandDefaultsAndNormalizesPath(t *testing.T) {
 	require.Equal(t, "info", got.logLevel)
 	require.Equal(t, "text", got.logFormat)
 	require.Empty(t, got.otelEndpoint)
+	require.False(t, got.requireToolAnnotations)
 }
 
 func TestCommandRequiresGRPCHostAndService(t *testing.T) {
@@ -95,4 +96,22 @@ func TestCommandParsesTelemetryFlags(t *testing.T) {
 	require.Equal(t, "json", got.logFormat)
 	require.Equal(t, "collector:4317", got.otelEndpoint)
 	require.True(t, got.otelInsecure)
+}
+
+func TestCommandParsesRequireToolAnnotations(t *testing.T) {
+	var got config
+	cmd := newCommand(func(_ context.Context, cfg config) error {
+		got = cfg
+		return nil
+	})
+
+	err := cmd.Run(context.Background(), []string{
+		"mcp-grpc-gateway",
+		"--grpc-host", "localhost:50051",
+		"--service", "test.v1.Service",
+		"--require-tool-annotations",
+	})
+
+	require.NoError(t, err)
+	require.True(t, got.requireToolAnnotations)
 }

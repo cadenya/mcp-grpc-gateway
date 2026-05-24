@@ -20,16 +20,17 @@ import (
 )
 
 type config struct {
-	addr           string
-	grpcHost       string
-	service        string
-	path           string
-	tls            bool
-	reloadInterval time.Duration
-	logLevel       string
-	logFormat      string
-	otelEndpoint   string
-	otelInsecure   bool
+	addr                   string
+	grpcHost               string
+	service                string
+	path                   string
+	tls                    bool
+	reloadInterval         time.Duration
+	logLevel               string
+	logFormat              string
+	otelEndpoint           string
+	otelInsecure           bool
+	requireToolAnnotations bool
 }
 
 func main() {
@@ -89,6 +90,10 @@ func newCommand(action func(context.Context, config) error) *cli.Command {
 				Name:  "otel-insecure",
 				Usage: "disable TLS for the OTLP gRPC trace exporter",
 			},
+			&cli.BoolFlag{
+				Name:  "require-tool-annotations",
+				Usage: "only expose RPCs that have grpcmcpgateway.v1.tool annotations",
+			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			cfg, err := configFromCommand(cmd)
@@ -102,16 +107,17 @@ func newCommand(action func(context.Context, config) error) *cli.Command {
 
 func configFromCommand(cmd *cli.Command) (config, error) {
 	cfg := config{
-		addr:           cmd.String("addr"),
-		grpcHost:       cmd.String("grpc-host"),
-		service:        cmd.String("service"),
-		path:           cmd.String("path"),
-		tls:            cmd.Bool("tls"),
-		reloadInterval: cmd.Duration("reload-interval"),
-		logLevel:       cmd.String("log-level"),
-		logFormat:      cmd.String("log-format"),
-		otelEndpoint:   cmd.String("otel-endpoint"),
-		otelInsecure:   cmd.Bool("otel-insecure"),
+		addr:                   cmd.String("addr"),
+		grpcHost:               cmd.String("grpc-host"),
+		service:                cmd.String("service"),
+		path:                   cmd.String("path"),
+		tls:                    cmd.Bool("tls"),
+		reloadInterval:         cmd.Duration("reload-interval"),
+		logLevel:               cmd.String("log-level"),
+		logFormat:              cmd.String("log-format"),
+		otelEndpoint:           cmd.String("otel-endpoint"),
+		otelInsecure:           cmd.Bool("otel-insecure"),
+		requireToolAnnotations: cmd.Bool("require-tool-annotations"),
 	}
 	if cfg.path == "" {
 		cfg.path = "/mcp"
@@ -155,9 +161,10 @@ func run(ctx context.Context, cfg config) error {
 	defer conn.Close()
 
 	cache := toolcache.New(toolcache.Options{
-		Conn:    conn,
-		Service: cfg.service,
-		Logger:  logger,
+		Conn:                   conn,
+		Service:                cfg.service,
+		Logger:                 logger,
+		RequireToolAnnotations: cfg.requireToolAnnotations,
 	})
 	if err := cache.Reload(ctx); err != nil {
 		return err

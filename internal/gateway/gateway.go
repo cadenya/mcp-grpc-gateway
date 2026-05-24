@@ -25,7 +25,19 @@ func NewServer(service protoreflect.ServiceDescriptor) *mcp.Server {
 	})
 }
 
-func RegisterTools(server *mcp.Server, conn grpc.ClientConnInterface, service protoreflect.ServiceDescriptor) error {
+type RegisterOption func(*registerConfig)
+
+type registerConfig struct {
+	requireToolAnnotations bool
+}
+
+func WithRequireToolAnnotations(require bool) RegisterOption {
+	return func(cfg *registerConfig) {
+		cfg.requireToolAnnotations = require
+	}
+}
+
+func RegisterTools(server *mcp.Server, conn grpc.ClientConnInterface, service protoreflect.ServiceDescriptor, opts ...RegisterOption) error {
 	if server == nil {
 		return fmt.Errorf("mcp server is nil")
 	}
@@ -35,6 +47,10 @@ func RegisterTools(server *mcp.Server, conn grpc.ClientConnInterface, service pr
 	if service == nil {
 		return fmt.Errorf("service descriptor is nil")
 	}
+	cfg := registerConfig{}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
 
 	methods := service.Methods()
 	for i := 0; i < methods.Len(); i++ {
@@ -42,11 +58,14 @@ func RegisterTools(server *mcp.Server, conn grpc.ClientConnInterface, service pr
 		if method.IsStreamingClient() || method.IsStreamingServer() {
 			continue
 		}
+		meta := annotations.ForMethod(method)
+		if cfg.requireToolAnnotations && !meta.Annotated {
+			continue
+		}
 		inputSchema, err := schema.ForMessage(method.Input())
 		if err != nil {
 			return fmt.Errorf("build schema for %s: %w", method.FullName(), err)
 		}
-		meta := annotations.ForMethod(method)
 		registerTool(server, conn, method, meta, inputSchema)
 	}
 	return nil

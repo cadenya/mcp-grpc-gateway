@@ -81,6 +81,21 @@ func (s *GatewaySuite) TestRegistersUnaryRPCsAsMCPTools() {
 	}, normalizeSchema(s.T(), tools[0].InputSchema))
 }
 
+func (s *GatewaySuite) TestCanRequireToolAnnotations() {
+	server := mcp.NewServer(&mcp.Implementation{Name: "gateway", Version: "test"}, nil)
+	s.Require().NoError(gateway.RegisterTools(server, s.conn, s.service, gateway.WithRequireToolAnnotations(true)))
+	session := s.connect(server)
+	defer session.Close()
+
+	var tools []*mcp.Tool
+	for tool, err := range session.Tools(context.Background(), nil) {
+		s.Require().NoError(err)
+		tools = append(tools, tool)
+	}
+
+	s.Empty(tools)
+}
+
 func (s *GatewaySuite) TestToolCallInvokesGRPCAndReturnsStructuredContent() {
 	server := mcp.NewServer(&mcp.Implementation{Name: "gateway", Version: "test"}, nil)
 	s.Require().NoError(gateway.RegisterTools(server, s.conn, s.service))

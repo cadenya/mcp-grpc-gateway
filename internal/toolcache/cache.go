@@ -22,23 +22,25 @@ import (
 type Loader func(context.Context, grpc.ClientConnInterface, string) (protoreflect.ServiceDescriptor, error)
 
 type Options struct {
-	Conn    grpc.ClientConnInterface
-	Service string
-	Loader  Loader
-	Logger  *slog.Logger
-	Tracer  trace.Tracer
+	Conn                   grpc.ClientConnInterface
+	Service                string
+	Loader                 Loader
+	Logger                 *slog.Logger
+	Tracer                 trace.Tracer
+	RequireToolAnnotations bool
 }
 
 type Cache struct {
 	conn    grpc.ClientConnInterface
 	service string
 
-	mu      sync.RWMutex
-	loader  Loader
-	logger  *slog.Logger
-	tracer  trace.Tracer
-	current atomic.Pointer[mcp.Server]
-	version atomic.Uint64
+	mu                     sync.RWMutex
+	loader                 Loader
+	logger                 *slog.Logger
+	tracer                 trace.Tracer
+	requireToolAnnotations bool
+	current                atomic.Pointer[mcp.Server]
+	version                atomic.Uint64
 }
 
 func New(opts Options) *Cache {
@@ -55,11 +57,12 @@ func New(opts Options) *Cache {
 		tracer = otel.Tracer("cadenya.com/mcp-grpc-gateway/internal/toolcache")
 	}
 	return &Cache{
-		conn:    opts.Conn,
-		service: opts.Service,
-		loader:  loader,
-		logger:  logger,
-		tracer:  tracer,
+		conn:                   opts.Conn,
+		service:                opts.Service,
+		loader:                 loader,
+		logger:                 logger,
+		tracer:                 tracer,
+		requireToolAnnotations: opts.RequireToolAnnotations,
 	}
 }
 
@@ -100,7 +103,11 @@ func (c *Cache) Reload(ctx context.Context) error {
 		return err
 	}
 	server := gateway.NewServer(service)
-	if err := gateway.RegisterTools(server, c.conn, service); err != nil {
+	registerOpts := []gateway.RegisterOption{}
+	if c.requireToolAnnotations {
+		registerOpts = append(registerOpts, gateway.WithRequireToolAnnotations(true))
+	}
+	if err := gateway.RegisterTools(server, c.conn, service, registerOpts...); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		c.logger.Error("register reflected tools failed", "grpc_service", c.service, "error", err)

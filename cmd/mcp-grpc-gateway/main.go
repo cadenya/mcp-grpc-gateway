@@ -5,9 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"cadenya.com/mcp-grpc-gateway/internal/mcphttp"
@@ -34,7 +37,10 @@ type config struct {
 }
 
 func main() {
-	if err := newCommand(run).Run(context.Background(), os.Args); err != nil {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	if err := newCommand(run).Run(ctx, os.Args); err != nil {
 		slog.Error("gateway exited", "error", err)
 		os.Exit(1)
 	}
@@ -180,8 +186,44 @@ func run(ctx context.Context, cfg config) error {
 	mux := http.NewServeMux()
 	mux.Handle(cfg.path, mcphttp.NewHandler(cache, logger))
 
-	logger.Info("serving MCP endpoint", "addr", cfg.addr, "path", cfg.path, "grpc_service", cfg.service)
-	return http.ListenAndServe(cfg.addr, mux)
+	listener, err := net.Listen("tcp", cfg.addr)
+	if err != nil {
+		return fmt.Errorf("listen on %s: %w", cfg.addr, err)
+	}
+	server := &http.Server{
+		Handler: mux,
+	}
+
+	logger.Info("serving MCP endpoint", "addr", listener.Addr().String(), "path", cfg.path, "grpc_service", cfg.service)
+	return serveHTTP(ctx, server, listener, logger)
+}
+
+func serveHTTP(ctx context.Context, server *http.Server, listener net.Listener, logger *slog.Logger) error {
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- server.Serve(listener)
+	}()
+
+	select {
+	case err := <-errCh:
+		if errors.Is(err, http.ErrServerClosed) {
+			return nil
+		}
+		return err
+	case <-ctx.Done():
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		logger.Info("shutting down HTTP server")
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			return fmt.Errorf("shutdown HTTP server: %w", err)
+		}
+		err := <-errCh
+		if errors.Is(err, http.ErrServerClosed) {
+			return nil
+		}
+		return err
+	}
 }
 
 func dialOptions(cfg config) []grpc.DialOption {

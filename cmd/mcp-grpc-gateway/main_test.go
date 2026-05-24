@@ -2,6 +2,10 @@ package main
 
 import (
 	"context"
+	"io"
+	"log/slog"
+	"net"
+	"net/http"
 	"testing"
 	"time"
 
@@ -114,4 +118,33 @@ func TestCommandParsesRequireToolAnnotations(t *testing.T) {
 
 	require.NoError(t, err)
 	require.True(t, got.requireToolAnnotations)
+}
+
+func TestServeHTTPShutsDownWhenContextIsCanceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("ok"))
+	})
+	server := &http.Server{
+		Handler: mux,
+	}
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- serveHTTP(ctx, server, listener, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	}()
+
+	resp, err := http.Get("http://" + listener.Addr().String() + "/health")
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	cancel()
+
+	require.NoError(t, <-errCh)
 }

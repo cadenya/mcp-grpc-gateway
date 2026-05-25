@@ -205,6 +205,41 @@ func TestGRPCTLSConfigLoadsCustomCAClientCertificateAndServerName(t *testing.T) 
 	require.Equal(t, "grpc.internal", tlsConfig.ServerName)
 }
 
+func TestCommandParsesProtoDescriptor(t *testing.T) {
+	var got config
+	cmd := newCommand(func(_ context.Context, cfg config) error {
+		got = cfg
+		return nil
+	})
+
+	err := cmd.Run(context.Background(), []string{
+		"mcp-grpc-gateway",
+		"--grpc-host", "localhost:50051",
+		"--proto-descriptor", "/path/to/descriptor.pb",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "/path/to/descriptor.pb", got.protoDescriptor)
+}
+
+func TestCommandParsesProtoDescriptorFromEnvironment(t *testing.T) {
+	t.Setenv("PROTO_DESCRIPTOR", "/env/path/descriptor.pb")
+
+	var got config
+	cmd := newCommand(func(_ context.Context, cfg config) error {
+		got = cfg
+		return nil
+	})
+
+	err := cmd.Run(context.Background(), []string{
+		"mcp-grpc-gateway",
+		"--grpc-host", "localhost:50051",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "/env/path/descriptor.pb", got.protoDescriptor)
+}
+
 func TestCommandParsesReloadInterval(t *testing.T) {
 	var got config
 	cmd := newCommand(func(_ context.Context, cfg config) error {

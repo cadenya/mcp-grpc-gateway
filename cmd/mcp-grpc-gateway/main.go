@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/urfave/cli/v3"
+	"go.cadenya.com/mcp-grpc-gateway/internal/discovery"
 	"go.cadenya.com/mcp-grpc-gateway/internal/mcphttp"
 	"go.cadenya.com/mcp-grpc-gateway/internal/telemetry"
 	"go.cadenya.com/mcp-grpc-gateway/internal/toolcache"
@@ -43,6 +44,7 @@ type config struct {
 	otelInsecure           bool
 	requireToolAnnotations bool
 	forwardHeaders         []string
+	protoDescriptor        string
 	mcpName                string
 	mcpTitle               string
 	mcpVersion             string
@@ -108,6 +110,11 @@ func newCommand(action func(context.Context, config) error) *cli.Command {
 				Name:    "grpc-server-name",
 				Usage:   "override the server name used to verify the gRPC TLS certificate",
 				Sources: cli.EnvVars("GRPC_SERVER_NAME"),
+			},
+			&cli.StringFlag{
+				Name:    "proto-descriptor",
+				Usage:   "path to a binary protobuf FileDescriptorSet file; disables gRPC reflection when set",
+				Sources: cli.EnvVars("PROTO_DESCRIPTOR"),
 			},
 			&cli.DurationFlag{
 				Name:  "reload-interval",
@@ -195,6 +202,7 @@ func configFromCommand(cmd *cli.Command) (config, error) {
 		grpcClientCertFile:     cmd.String("grpc-client-cert-file"),
 		grpcClientKeyFile:      cmd.String("grpc-client-key-file"),
 		grpcServerName:         cmd.String("grpc-server-name"),
+		protoDescriptor:        cmd.String("proto-descriptor"),
 		reloadInterval:         cmd.Duration("reload-interval"),
 		toolCallTimeout:        cmd.Duration("tool-call-timeout"),
 		logLevel:               cmd.String("log-level"),
@@ -251,7 +259,7 @@ func run(ctx context.Context, cfg config) error {
 	}
 	defer conn.Close()
 
-	cache := toolcache.New(toolcache.Options{
+	cacheOpts := toolcache.Options{
 		Conn:     conn,
 		Services: cfg.services,
 		Server: toolcache.ServerMetadata{
@@ -264,7 +272,12 @@ func run(ctx context.Context, cfg config) error {
 		Logger:                 logger,
 		RequireToolAnnotations: cfg.requireToolAnnotations,
 		ToolCallTimeout:        cfg.toolCallTimeout,
-	})
+	}
+	if cfg.protoDescriptor != "" {
+		cacheOpts.Loader = discovery.LoadServicesFromFile(cfg.protoDescriptor)
+		logger.Info("using proto descriptor file for service discovery", "path", cfg.protoDescriptor)
+	}
+	cache := toolcache.New(cacheOpts)
 	if err := cache.Reload(ctx); err != nil {
 		return err
 	}

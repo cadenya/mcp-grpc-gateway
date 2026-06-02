@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/urfave/cli/v3"
+	"go.cadenya.com/mcp-grpc-gateway/internal/discovery"
 	"go.cadenya.com/mcp-grpc-gateway/internal/mcphttp"
 	"go.cadenya.com/mcp-grpc-gateway/internal/telemetry"
 	"go.cadenya.com/mcp-grpc-gateway/internal/toolcache"
@@ -30,6 +31,7 @@ type config struct {
 	grpcHost               string
 	services               []string
 	path                   string
+	healthPath             string
 	tls                    bool
 	grpcCAFile             string
 	grpcClientCertFile     string
@@ -43,6 +45,7 @@ type config struct {
 	otelInsecure           bool
 	requireToolAnnotations bool
 	forwardHeaders         []string
+	protoDescriptor        string
 	mcpName                string
 	mcpTitle               string
 	mcpVersion             string
@@ -83,6 +86,12 @@ func newCommand(action func(context.Context, config) error) *cli.Command {
 				Value: "/mcp",
 				Usage: "HTTP path for the MCP endpoint",
 			},
+			&cli.StringFlag{
+				Name:    "health-path",
+				Value:   "/health",
+				Usage:   "HTTP path for the health endpoint",
+				Sources: cli.EnvVars("HEALTH_PATH"),
+			},
 			&cli.BoolFlag{
 				Name:    "grpc-tls",
 				Aliases: []string{"tls"},
@@ -108,6 +117,11 @@ func newCommand(action func(context.Context, config) error) *cli.Command {
 				Name:    "grpc-server-name",
 				Usage:   "override the server name used to verify the gRPC TLS certificate",
 				Sources: cli.EnvVars("GRPC_SERVER_NAME"),
+			},
+			&cli.StringFlag{
+				Name:    "proto-descriptor",
+				Usage:   "path to a binary protobuf FileDescriptorSet file; disables gRPC reflection when set",
+				Sources: cli.EnvVars("PROTO_DESCRIPTOR"),
 			},
 			&cli.DurationFlag{
 				Name:  "reload-interval",
@@ -190,11 +204,13 @@ func configFromCommand(cmd *cli.Command) (config, error) {
 		grpcHost:               cmd.String("grpc-host"),
 		services:               cmd.StringSlice("service"),
 		path:                   cmd.String("path"),
+		healthPath:             cmd.String("health-path"),
 		tls:                    cmd.Bool("grpc-tls"),
 		grpcCAFile:             cmd.String("grpc-ca-file"),
 		grpcClientCertFile:     cmd.String("grpc-client-cert-file"),
 		grpcClientKeyFile:      cmd.String("grpc-client-key-file"),
 		grpcServerName:         cmd.String("grpc-server-name"),
+		protoDescriptor:        cmd.String("proto-descriptor"),
 		reloadInterval:         cmd.Duration("reload-interval"),
 		toolCallTimeout:        cmd.Duration("tool-call-timeout"),
 		logLevel:               cmd.String("log-level"),
@@ -209,18 +225,27 @@ func configFromCommand(cmd *cli.Command) (config, error) {
 		mcpInstructions:        cmd.String("mcp-instructions"),
 		mcpWebsiteURL:          cmd.String("mcp-website-url"),
 	}
-	if cfg.path == "" {
-		cfg.path = "/mcp"
-	}
-	if !strings.HasPrefix(cfg.path, "/") {
-		cfg.path = "/" + cfg.path
-	}
+	cfg.path = normalizeHTTPPath(cfg.path, "/mcp")
+	cfg.healthPath = normalizeHTTPPath(cfg.healthPath, "/health")
 
 	var errs []error
 	if cfg.grpcHost == "" {
 		errs = append(errs, errors.New("--grpc-host is required"))
 	}
+	if cfg.path == cfg.healthPath {
+		errs = append(errs, errors.New("--path and --health-path must be different"))
+	}
 	return cfg, errors.Join(errs...)
+}
+
+func normalizeHTTPPath(path, fallback string) string {
+	if path == "" {
+		path = fallback
+	}
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	return path
 }
 
 func run(ctx context.Context, cfg config) error {
@@ -251,7 +276,7 @@ func run(ctx context.Context, cfg config) error {
 	}
 	defer conn.Close()
 
-	cache := toolcache.New(toolcache.Options{
+	cacheOpts := toolcache.Options{
 		Conn:     conn,
 		Services: cfg.services,
 		Server: toolcache.ServerMetadata{
@@ -264,7 +289,12 @@ func run(ctx context.Context, cfg config) error {
 		Logger:                 logger,
 		RequireToolAnnotations: cfg.requireToolAnnotations,
 		ToolCallTimeout:        cfg.toolCallTimeout,
-	})
+	}
+	if cfg.protoDescriptor != "" {
+		cacheOpts.Loader = discovery.LoadServicesFromFile(cfg.protoDescriptor)
+		logger.Info("using proto descriptor file for service discovery", "path", cfg.protoDescriptor)
+	}
+	cache := toolcache.New(cacheOpts)
 	if err := cache.Reload(ctx); err != nil {
 		return err
 	}
@@ -278,6 +308,7 @@ func run(ctx context.Context, cfg config) error {
 
 	mux := http.NewServeMux()
 	mux.Handle(cfg.path, mcphttp.NewHandler(cache, logger, mcphttp.WithForwardHeaders(cfg.forwardHeaders)))
+	registerHealthHandler(mux, cfg.healthPath)
 
 	listener, err := net.Listen("tcp", cfg.addr)
 	if err != nil {
@@ -287,8 +318,14 @@ func run(ctx context.Context, cfg config) error {
 		Handler: mux,
 	}
 
-	logger.Info("serving MCP endpoint", "addr", listener.Addr().String(), "path", cfg.path, "grpc_services", cfg.services)
+	logger.Info("serving MCP endpoint", "addr", listener.Addr().String(), "path", cfg.path, "health_path", cfg.healthPath, "grpc_services", cfg.services)
 	return serveHTTP(ctx, server, listener, logger)
+}
+
+func registerHealthHandler(mux *http.ServeMux, path string) {
+	mux.HandleFunc(path, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("ok"))
+	})
 }
 
 func serveHTTP(ctx context.Context, server *http.Server, listener net.Listener, logger *slog.Logger) error {

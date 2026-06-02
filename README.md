@@ -4,13 +4,13 @@
   <img src="images/diagram.png" alt="MCP client calling MCP gRPC Gateway, which forwards to your gRPC service" width="520">
 </p>
 
-MCP gRPC Gateway exposes existing gRPC services as stateless MCP tools over HTTP. It connects to a downstream gRPC server, reads its live service descriptors through gRPC reflection, converts unary RPC request messages into JSON Schema tool inputs, and invokes the selected RPC when an MCP client calls the tool.
+MCP gRPC Gateway exposes existing gRPC services as stateless MCP tools over HTTP. It connects to a downstream gRPC server, discovers service descriptors through gRPC reflection or a proto descriptor file, converts unary RPC request messages into JSON Schema tool inputs, and invokes the selected RPC when an MCP client calls the tool.
 
-The gateway is designed for teams that already describe service contracts in protobuf and want MCP support without hand-writing a parallel tool server. Protobuf annotations can provide tool names and tool descriptions, while reflection lets the gateway reload tool definitions as services change. In practice, your gRPC service remains the source of truth and the gateway can pick up newly deployed tools without a gateway redeploy.
+The gateway is designed for teams that already describe service contracts in protobuf and want MCP support without hand-writing a parallel tool server. Protobuf annotations can provide tool names and tool descriptions, while reflection or descriptor files let the gateway reload tool definitions as services change. In practice, your gRPC service remains the source of truth and the gateway can pick up newly deployed tools without a gateway redeploy.
 
 ## Run The Gateway
 
-MCP gRPC Gateway runs as a small HTTP service in front of a reflected gRPC server. Point it at a gRPC host that has server reflection enabled:
+MCP gRPC Gateway runs as a small HTTP service in front of a gRPC server. Point it at a gRPC host that has server reflection enabled:
 
 ```bash
 mcp-grpc-gateway --grpc-host your-grpc-service:50051
@@ -20,6 +20,20 @@ By default, the gateway listens on `127.0.0.1:8080` and exposes the MCP endpoint
 
 ```text
 http://127.0.0.1:8080/mcp
+```
+
+The gateway also exposes a health endpoint at `/health` by default:
+
+```text
+http://127.0.0.1:8080/health
+```
+
+Use `--health-path` or `HEALTH_PATH` to expose health at a different path:
+
+```bash
+mcp-grpc-gateway \
+  --grpc-host your-grpc-service:50051 \
+  --health-path /readyz
 ```
 
 To expose it from a container, VM, or Kubernetes pod, bind to all interfaces explicitly:
@@ -262,6 +276,37 @@ service ObjectivesService {
 ```
 
 Service-level `tool_prefix` is prepended to every tool name in that service. In the example above, the MCP tool is exposed as `objectives_list`. This is useful when one gateway aggregates multiple services that might otherwise use the same tool names.
+
+## Proto Descriptor Files
+
+When gRPC reflection is not available on the downstream server, you can provide a binary protobuf `FileDescriptorSet` instead. This is the same format Envoy uses for gRPC-JSON transcoding.
+
+Generate the descriptor set with Buf:
+
+```bash
+buf build -o descriptors.binpb
+```
+
+Then start the gateway with `--proto-descriptor`:
+
+```bash
+mcp-grpc-gateway \
+  --grpc-host your-grpc-service:50051 \
+  --proto-descriptor descriptors.binpb
+```
+
+When `--proto-descriptor` is set, the gateway reads service definitions from the file and does not use gRPC reflection. The `--service` filter still works to limit which services are exposed:
+
+```bash
+mcp-grpc-gateway \
+  --grpc-host your-grpc-service:50051 \
+  --proto-descriptor descriptors.binpb \
+  --service yourapp.v1.ObjectivesService
+```
+
+Background reloads still apply — the gateway re-reads the descriptor file on each reload interval, so you can update the file in place and the gateway picks up the changes without a restart.
+
+The flag can also be set with the `PROTO_DESCRIPTOR` environment variable.
 
 ## Tool Snapshot Reloads
 

@@ -12,6 +12,7 @@ import (
 	"math/big"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 	"time"
@@ -72,6 +73,74 @@ func TestCommandParsesToolCallTimeout(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, 5*time.Second, got.toolCallTimeout)
+}
+
+func TestCommandDefaultsHealthPath(t *testing.T) {
+	var got config
+	cmd := newCommand(func(_ context.Context, cfg config) error {
+		got = cfg
+		return nil
+	})
+
+	err := cmd.Run(context.Background(), []string{
+		"mcp-grpc-gateway",
+		"--grpc-host", "localhost:50051",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "/health", got.healthPath)
+}
+
+func TestCommandParsesAndNormalizesHealthPath(t *testing.T) {
+	var got config
+	cmd := newCommand(func(_ context.Context, cfg config) error {
+		got = cfg
+		return nil
+	})
+
+	err := cmd.Run(context.Background(), []string{
+		"mcp-grpc-gateway",
+		"--grpc-host", "localhost:50051",
+		"--health-path", "readyz",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "/readyz", got.healthPath)
+}
+
+func TestCommandReadsHealthPathFromEnvironment(t *testing.T) {
+	t.Setenv("HEALTH_PATH", "/livez")
+
+	var got config
+	cmd := newCommand(func(_ context.Context, cfg config) error {
+		got = cfg
+		return nil
+	})
+
+	err := cmd.Run(context.Background(), []string{
+		"mcp-grpc-gateway",
+		"--grpc-host", "localhost:50051",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "/livez", got.healthPath)
+}
+
+func TestCommandRejectsMatchingMCPAndHealthPaths(t *testing.T) {
+	cmd := newCommand(func(context.Context, config) error {
+		t.Fatal("action should not run for invalid config")
+		return nil
+	})
+
+	err := cmd.Run(context.Background(), []string{
+		"mcp-grpc-gateway",
+		"--grpc-host", "localhost:50051",
+		"--path", "/readyz",
+		"--health-path", "readyz",
+	})
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "--path and --health-path must be different")
 }
 
 func TestCommandRequiresGRPCHostAndService(t *testing.T) {
@@ -203,6 +272,41 @@ func TestGRPCTLSConfigLoadsCustomCAClientCertificateAndServerName(t *testing.T) 
 	require.NotEmpty(t, tlsConfig.RootCAs.Subjects())
 	require.Len(t, tlsConfig.Certificates, 1)
 	require.Equal(t, "grpc.internal", tlsConfig.ServerName)
+}
+
+func TestCommandParsesProtoDescriptor(t *testing.T) {
+	var got config
+	cmd := newCommand(func(_ context.Context, cfg config) error {
+		got = cfg
+		return nil
+	})
+
+	err := cmd.Run(context.Background(), []string{
+		"mcp-grpc-gateway",
+		"--grpc-host", "localhost:50051",
+		"--proto-descriptor", "/path/to/descriptor.pb",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "/path/to/descriptor.pb", got.protoDescriptor)
+}
+
+func TestCommandParsesProtoDescriptorFromEnvironment(t *testing.T) {
+	t.Setenv("PROTO_DESCRIPTOR", "/env/path/descriptor.pb")
+
+	var got config
+	cmd := newCommand(func(_ context.Context, cfg config) error {
+		got = cfg
+		return nil
+	})
+
+	err := cmd.Run(context.Background(), []string{
+		"mcp-grpc-gateway",
+		"--grpc-host", "localhost:50051",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "/env/path/descriptor.pb", got.protoDescriptor)
 }
 
 func TestCommandParsesReloadInterval(t *testing.T) {
@@ -339,6 +443,19 @@ func TestCommandMCPMetadataFlagsOverrideEnvironment(t *testing.T) {
 	require.Equal(t, "3.0.0", got.mcpVersion)
 	require.Equal(t, "Use flag metadata.", got.mcpInstructions)
 	require.Equal(t, "https://example.com/flag", got.mcpWebsiteURL)
+}
+
+func TestHealthHandlerReturnsOK(t *testing.T) {
+	mux := http.NewServeMux()
+	registerHealthHandler(mux, "/readyz")
+
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	resp := httptest.NewRecorder()
+
+	mux.ServeHTTP(resp, req)
+
+	require.Equal(t, http.StatusOK, resp.Code)
+	require.Equal(t, "ok", resp.Body.String())
 }
 
 func TestServeHTTPShutsDownWhenContextIsCanceled(t *testing.T) {

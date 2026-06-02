@@ -31,6 +31,7 @@ type config struct {
 	grpcHost               string
 	services               []string
 	path                   string
+	healthPath             string
 	tls                    bool
 	grpcCAFile             string
 	grpcClientCertFile     string
@@ -84,6 +85,12 @@ func newCommand(action func(context.Context, config) error) *cli.Command {
 				Name:  "path",
 				Value: "/mcp",
 				Usage: "HTTP path for the MCP endpoint",
+			},
+			&cli.StringFlag{
+				Name:    "health-path",
+				Value:   "/health",
+				Usage:   "HTTP path for the health endpoint",
+				Sources: cli.EnvVars("HEALTH_PATH"),
 			},
 			&cli.BoolFlag{
 				Name:    "grpc-tls",
@@ -197,6 +204,7 @@ func configFromCommand(cmd *cli.Command) (config, error) {
 		grpcHost:               cmd.String("grpc-host"),
 		services:               cmd.StringSlice("service"),
 		path:                   cmd.String("path"),
+		healthPath:             cmd.String("health-path"),
 		tls:                    cmd.Bool("grpc-tls"),
 		grpcCAFile:             cmd.String("grpc-ca-file"),
 		grpcClientCertFile:     cmd.String("grpc-client-cert-file"),
@@ -217,18 +225,24 @@ func configFromCommand(cmd *cli.Command) (config, error) {
 		mcpInstructions:        cmd.String("mcp-instructions"),
 		mcpWebsiteURL:          cmd.String("mcp-website-url"),
 	}
-	if cfg.path == "" {
-		cfg.path = "/mcp"
-	}
-	if !strings.HasPrefix(cfg.path, "/") {
-		cfg.path = "/" + cfg.path
-	}
+	cfg.path = normalizeHTTPPath(cfg.path, "/mcp")
+	cfg.healthPath = normalizeHTTPPath(cfg.healthPath, "/health")
 
 	var errs []error
 	if cfg.grpcHost == "" {
 		errs = append(errs, errors.New("--grpc-host is required"))
 	}
 	return cfg, errors.Join(errs...)
+}
+
+func normalizeHTTPPath(path, fallback string) string {
+	if path == "" {
+		path = fallback
+	}
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	return path
 }
 
 func run(ctx context.Context, cfg config) error {
@@ -291,6 +305,7 @@ func run(ctx context.Context, cfg config) error {
 
 	mux := http.NewServeMux()
 	mux.Handle(cfg.path, mcphttp.NewHandler(cache, logger, mcphttp.WithForwardHeaders(cfg.forwardHeaders)))
+	registerHealthHandler(mux, cfg.healthPath)
 
 	listener, err := net.Listen("tcp", cfg.addr)
 	if err != nil {
@@ -300,8 +315,14 @@ func run(ctx context.Context, cfg config) error {
 		Handler: mux,
 	}
 
-	logger.Info("serving MCP endpoint", "addr", listener.Addr().String(), "path", cfg.path, "grpc_services", cfg.services)
+	logger.Info("serving MCP endpoint", "addr", listener.Addr().String(), "path", cfg.path, "health_path", cfg.healthPath, "grpc_services", cfg.services)
 	return serveHTTP(ctx, server, listener, logger)
+}
+
+func registerHealthHandler(mux *http.ServeMux, path string) {
+	mux.HandleFunc(path, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("ok"))
+	})
 }
 
 func serveHTTP(ctx context.Context, server *http.Server, listener net.Listener, logger *slog.Logger) error {

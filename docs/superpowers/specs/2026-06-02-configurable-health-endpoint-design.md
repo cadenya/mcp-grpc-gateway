@@ -32,7 +32,9 @@ The health response should not depend on downstream gRPC discovery, tool calls, 
 
 ## Error Handling
 
-This feature does not add new runtime error conditions. Invalid or unusual path strings should follow `http.ServeMux` behavior, consistent with the existing MCP path handling.
+Reject configurations where the normalized MCP path and normalized health path are the same. Returning a clear validation error before mux registration avoids an `http.ServeMux` duplicate-handler panic for values such as `--path /health` or `--health-path /mcp`.
+
+Other invalid or unusual path strings should follow `http.ServeMux` behavior, consistent with the existing MCP path handling.
 
 ## Tests
 

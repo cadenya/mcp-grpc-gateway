@@ -22,6 +22,20 @@ By default, the gateway listens on `127.0.0.1:8080` and exposes the MCP endpoint
 http://127.0.0.1:8080/mcp
 ```
 
+The gateway also exposes a health endpoint at `/health` by default:
+
+```text
+http://127.0.0.1:8080/health
+```
+
+Use `--health-path` or `HEALTH_PATH` to expose health at a different path:
+
+```bash
+mcp-grpc-gateway \
+  --grpc-host your-grpc-service:50051 \
+  --health-path /readyz
+```
+
 To expose it from a container, VM, or Kubernetes pod, bind to all interfaces explicitly:
 
 ```bash

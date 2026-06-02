@@ -126,6 +126,23 @@ func TestCommandReadsHealthPathFromEnvironment(t *testing.T) {
 	require.Equal(t, "/livez", got.healthPath)
 }
 
+func TestCommandRejectsMatchingMCPAndHealthPaths(t *testing.T) {
+	cmd := newCommand(func(context.Context, config) error {
+		t.Fatal("action should not run for invalid config")
+		return nil
+	})
+
+	err := cmd.Run(context.Background(), []string{
+		"mcp-grpc-gateway",
+		"--grpc-host", "localhost:50051",
+		"--path", "/readyz",
+		"--health-path", "readyz",
+	})
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "--path and --health-path must be different")
+}
+
 func TestCommandRequiresGRPCHostAndService(t *testing.T) {
 	cmd := newCommand(func(context.Context, config) error {
 		t.Fatal("action should not run for invalid config")

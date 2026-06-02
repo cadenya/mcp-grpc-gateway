@@ -232,6 +232,9 @@ func configFromCommand(cmd *cli.Command) (config, error) {
 	if cfg.grpcHost == "" {
 		errs = append(errs, errors.New("--grpc-host is required"))
 	}
+	if cfg.path == cfg.healthPath {
+		errs = append(errs, errors.New("--path and --health-path must be different"))
+	}
 	return cfg, errors.Join(errs...)
 }
 

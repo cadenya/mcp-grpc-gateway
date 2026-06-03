@@ -487,6 +487,50 @@ func TestServeHTTPShutsDownWhenContextIsCanceled(t *testing.T) {
 	require.NoError(t, <-errCh)
 }
 
+func TestRunServesHealthWhenInitialGRPCReflectionIsUnavailable(t *testing.T) {
+	addr := freeTCPAddr(t)
+	grpcAddr := freeTCPAddr(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- run(ctx, config{
+			addr:            addr,
+			grpcHost:        grpcAddr,
+			healthPath:      "/health",
+			path:            "/mcp",
+			reloadInterval:  10 * time.Millisecond,
+			toolCallTimeout: 30 * time.Second,
+			logLevel:        "error",
+			logFormat:       "text",
+			mcpName:         "mcp-grpc-gateway",
+			mcpVersion:      "test",
+		})
+	}()
+
+	require.Eventually(t, func() bool {
+		resp, err := http.Get("http://" + addr + "/health")
+		if err != nil {
+			return false
+		}
+		defer resp.Body.Close()
+		return resp.StatusCode == http.StatusOK
+	}, time.Second, 10*time.Millisecond)
+
+	cancel()
+	require.NoError(t, <-errCh)
+}
+
+func freeTCPAddr(t *testing.T) string {
+	t.Helper()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer listener.Close()
+	return listener.Addr().String()
+}
+
 func writeTestCertificates(t *testing.T) (string, string, string) {
 	t.Helper()
 

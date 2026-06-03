@@ -4,10 +4,13 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
+	"go.cadenya.com/mcp-grpc-gateway/internal/discovery"
 	"go.cadenya.com/mcp-grpc-gateway/internal/testpb"
 	"go.cadenya.com/mcp-grpc-gateway/internal/toolcache"
 	"google.golang.org/grpc"
@@ -86,6 +89,42 @@ func TestCacheReloadSwapsServerAfterSuccessfulReflectionReload(t *testing.T) {
 	}
 	require.Len(t, tools, 1)
 	require.Equal(t, "greet_user", tools[0].Name)
+}
+
+func TestCacheRunRetriesAfterInitialReflectionFailure(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	addr, stop := startGRPCServer(t)
+	defer stop()
+
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+	defer conn.Close()
+
+	var calls atomic.Int32
+	cache := toolcache.New(toolcache.Options{
+		Conn:    conn,
+		Service: "functional.v1.GreeterService",
+		Loader: func(ctx context.Context, conn grpc.ClientConnInterface, services []string) ([]protoreflect.ServiceDescriptor, error) {
+			if calls.Add(1) == 1 {
+				return nil, fmt.Errorf("reflection unavailable")
+			}
+			return discovery.LoadServices(ctx, conn, services)
+		},
+	})
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- cache.Run(ctx, 10*time.Millisecond)
+	}()
+
+	require.Eventually(t, func() bool {
+		return cache.Current() != nil && cache.Version() == 1
+	}, time.Second, 10*time.Millisecond)
+
+	cancel()
+	require.ErrorIs(t, <-errCh, context.Canceled)
+	require.GreaterOrEqual(t, calls.Load(), int32(2))
 }
 
 func TestCacheReloadLoadsAllServicesWhenNoFilterIsProvided(t *testing.T) {

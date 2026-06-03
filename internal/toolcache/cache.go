@@ -149,7 +149,9 @@ func (c *Cache) Reload(ctx context.Context) error {
 
 func (c *Cache) Run(ctx context.Context, interval time.Duration) error {
 	if err := c.Reload(ctx); err != nil {
-		return err
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 	}
 	if interval <= 0 {
 		<-ctx.Done()

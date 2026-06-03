@@ -296,7 +296,10 @@ func run(ctx context.Context, cfg config) error {
 	}
 	cache := toolcache.New(cacheOpts)
 	if err := cache.Reload(ctx); err != nil {
-		return err
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		logger.Warn("initial tool cache reload failed; gateway will keep retrying", "error", err)
 	}
 	if cfg.reloadInterval > 0 {
 		go func() {

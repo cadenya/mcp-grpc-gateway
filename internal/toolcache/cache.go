@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -46,6 +47,7 @@ type Cache struct {
 	server                 ServerMetadata
 	requireToolAnnotations bool
 	toolCallTimeout        time.Duration
+	tools                  map[string]string
 	current                atomic.Pointer[mcp.Server]
 	version                atomic.Uint64
 }
@@ -142,9 +144,48 @@ func (c *Cache) Reload(ctx context.Context) error {
 	}
 	c.current.Store(server)
 	version := c.version.Add(1)
-	span.SetAttributes(attribute.Int64("toolcache.version", int64(version)))
-	c.logger.Info("reloaded reflected tools", "grpc_services", serviceNames(services), "version", version)
+
+	c.mu.Lock()
+	added, removed, unchanged := diffTools(c.tools, registered)
+	c.tools = registered
+	c.mu.Unlock()
+
+	span.SetAttributes(
+		attribute.Int64("toolcache.version", int64(version)),
+		attribute.Int("toolcache.tools.added", len(added)),
+		attribute.Int("toolcache.tools.removed", len(removed)),
+		attribute.Int("toolcache.tools.unchanged", len(unchanged)),
+	)
+	c.logger.Info("reloaded reflected tools",
+		"grpc_services", serviceNames(services),
+		"version", version,
+		"tools_added", added,
+		"tools_removed", removed,
+		"tools_unchanged", len(unchanged),
+	)
 	return nil
+}
+
+// diffTools compares the previously registered tool set with the newly
+// registered one, returning sorted slices of added and removed tool names and
+// the names that were present in both reloads.
+func diffTools(previous, current map[string]string) (added, removed, unchanged []string) {
+	for name := range current {
+		if _, ok := previous[name]; ok {
+			unchanged = append(unchanged, name)
+		} else {
+			added = append(added, name)
+		}
+	}
+	for name := range previous {
+		if _, ok := current[name]; !ok {
+			removed = append(removed, name)
+		}
+	}
+	sort.Strings(added)
+	sort.Strings(removed)
+	sort.Strings(unchanged)
+	return added, removed, unchanged
 }
 
 func (c *Cache) Run(ctx context.Context, interval time.Duration) error {

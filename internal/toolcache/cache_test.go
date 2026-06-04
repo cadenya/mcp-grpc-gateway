@@ -3,7 +3,9 @@ package toolcache_test
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -150,6 +152,70 @@ func TestCacheReloadLoadsAllServicesWhenNoFilterIsProvided(t *testing.T) {
 	}
 	require.Len(t, tools, 1)
 	require.Equal(t, "greet_user", tools[0].Name)
+}
+
+func TestCacheReloadLogsToolDiffAcrossReloads(t *testing.T) {
+	ctx := context.Background()
+	addr, stop := startGRPCServer(t)
+	defer stop()
+
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+	defer conn.Close()
+
+	handler := &captureHandler{}
+	cache := toolcache.New(toolcache.Options{
+		Conn:    conn,
+		Service: "functional.v1.GreeterService",
+		Logger:  slog.New(handler),
+	})
+
+	require.NoError(t, cache.Reload(ctx))
+	first := handler.lastReload(t)
+	require.Equal(t, []string{"greet_user"}, first["tools_added"])
+	require.Empty(t, first["tools_removed"])
+	require.Equal(t, int64(0), first["tools_unchanged"])
+
+	require.NoError(t, cache.Reload(ctx))
+	second := handler.lastReload(t)
+	require.Empty(t, second["tools_added"])
+	require.Empty(t, second["tools_removed"])
+	require.Equal(t, int64(1), second["tools_unchanged"])
+}
+
+// captureHandler is a minimal slog.Handler that records the attributes of every
+// "reloaded reflected tools" record so tests can assert on the emitted diff.
+type captureHandler struct {
+	mu      sync.Mutex
+	reloads []map[string]any
+}
+
+func (h *captureHandler) Enabled(context.Context, slog.Level) bool { return true }
+
+func (h *captureHandler) Handle(_ context.Context, record slog.Record) error {
+	if record.Message != "reloaded reflected tools" {
+		return nil
+	}
+	attrs := map[string]any{}
+	record.Attrs(func(a slog.Attr) bool {
+		attrs[a.Key] = a.Value.Any()
+		return true
+	})
+	h.mu.Lock()
+	h.reloads = append(h.reloads, attrs)
+	h.mu.Unlock()
+	return nil
+}
+
+func (h *captureHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
+func (h *captureHandler) WithGroup(string) slog.Handler       { return h }
+
+func (h *captureHandler) lastReload(t *testing.T) map[string]any {
+	t.Helper()
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	require.NotEmpty(t, h.reloads)
+	return h.reloads[len(h.reloads)-1]
 }
 
 func startGRPCServer(t *testing.T) (string, func()) {

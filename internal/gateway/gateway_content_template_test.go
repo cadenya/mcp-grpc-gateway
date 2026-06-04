@@ -235,3 +235,127 @@ func (s *ContentTemplateSuite) TestRendersUsingCamelCaseJSONKey() {
 	text := got.Content[0].(*mcp.TextContent)
 	s.Equal("Name: Ada", text.Text)
 }
+
+// annotatedTripService builds an Echo RPC whose response nests another message
+// (address) and carries a repeated message field (items), so templates can be
+// exercised against nested field access and range loops the way real protos
+// — which commonly reference other messages — would be.
+//
+//	message Address  { string city = 1; string country = 2; }
+//	message Item     { string label = 1; }
+//	message EchoResponse {
+//	  string title = 1;
+//	  Address address = 2;
+//	  repeated Item items = 3;
+//	}
+func (s *ContentTemplateSuite) annotatedTripService(contentTemplate string) protoreflect.ServiceDescriptor {
+	optional := descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL
+	repeated := descriptorpb.FieldDescriptorProto_LABEL_REPEATED
+	typeString := descriptorpb.FieldDescriptorProto_TYPE_STRING
+	typeMessage := descriptorpb.FieldDescriptorProto_TYPE_MESSAGE
+
+	fdProto := &descriptorpb.FileDescriptorProto{
+		Name:       ptr("tmpl/v3/echo.proto"),
+		Package:    ptr("tmpl.v3"),
+		Syntax:     ptr("proto3"),
+		Dependency: []string{"grpcmcpgateway/v1/annotations.proto"},
+		MessageType: []*descriptorpb.DescriptorProto{
+			{Name: ptr("EchoRequest"), Field: []*descriptorpb.FieldDescriptorProto{
+				{Name: ptr("id"), JsonName: ptr("id"), Number: ptr[int32](1), Label: &optional, Type: &typeString},
+			}},
+			{Name: ptr("Address"), Field: []*descriptorpb.FieldDescriptorProto{
+				{Name: ptr("city"), JsonName: ptr("city"), Number: ptr[int32](1), Label: &optional, Type: &typeString},
+				{Name: ptr("country"), JsonName: ptr("country"), Number: ptr[int32](2), Label: &optional, Type: &typeString},
+			}},
+			{Name: ptr("Item"), Field: []*descriptorpb.FieldDescriptorProto{
+				{Name: ptr("label"), JsonName: ptr("label"), Number: ptr[int32](1), Label: &optional, Type: &typeString},
+			}},
+			{Name: ptr("EchoResponse"), Field: []*descriptorpb.FieldDescriptorProto{
+				{Name: ptr("title"), JsonName: ptr("title"), Number: ptr[int32](1), Label: &optional, Type: &typeString},
+				{Name: ptr("address"), JsonName: ptr("address"), Number: ptr[int32](2), Label: &optional, Type: &typeMessage, TypeName: ptr(".tmpl.v3.Address")},
+				{Name: ptr("items"), JsonName: ptr("items"), Number: ptr[int32](3), Label: &repeated, Type: &typeMessage, TypeName: ptr(".tmpl.v3.Item")},
+			}},
+		},
+		Service: []*descriptorpb.ServiceDescriptorProto{{
+			Name: ptr("EchoService"),
+			Method: []*descriptorpb.MethodDescriptorProto{
+				{Name: ptr("Echo"), InputType: ptr(".tmpl.v3.EchoRequest"), OutputType: ptr(".tmpl.v3.EchoResponse"), Options: &descriptorpb.MethodOptions{}},
+			},
+		}},
+	}
+
+	toolBytes, err := proto.Marshal(&grpcmcpgatewayv1.Tool{Name: "Echo", ContentTemplate: contentTemplate})
+	s.Require().NoError(err)
+	unknown := protowire.AppendTag(nil, protowire.Number(grpcmcpgatewayv1.ToolExtensionNumber), protowire.BytesType)
+	unknown = protowire.AppendBytes(unknown, toolBytes)
+	fdProto.Service[0].Method[0].Options.ProtoReflect().SetUnknown(unknown)
+
+	fd, err := protodesc.NewFile(fdProto, protoregistry.GlobalFiles)
+	s.Require().NoError(err)
+	return fd.Services().ByName("EchoService")
+}
+
+// tripConn populates a fixed EchoResponse: title "Trip", a nested address, and
+// two items.
+type tripConn struct {
+	method protoreflect.MethodDescriptor
+}
+
+func (c *tripConn) Invoke(ctx context.Context, method string, args any, reply any, _ ...grpc.CallOption) error {
+	resp := reply.(*dynamicpb.Message)
+	fields := c.method.Output().Fields()
+
+	resp.Set(fields.ByName("title"), protoreflect.ValueOfString("Trip"))
+
+	addr := resp.Mutable(fields.ByName("address")).Message()
+	addrFields := addr.Descriptor().Fields()
+	addr.Set(addrFields.ByName("city"), protoreflect.ValueOfString("Berlin"))
+	addr.Set(addrFields.ByName("country"), protoreflect.ValueOfString("DE"))
+
+	items := resp.Mutable(fields.ByName("items")).List()
+	for _, label := range []string{"map", "guide"} {
+		elem := items.NewElement()
+		msg := elem.Message()
+		msg.Set(msg.Descriptor().Fields().ByName("label"), protoreflect.ValueOfString(label))
+		items.Append(elem)
+	}
+	return nil
+}
+
+func (c *tripConn) NewStream(context.Context, *grpc.StreamDesc, string, ...grpc.CallOption) (grpc.ClientStream, error) {
+	return nil, fmt.Errorf("streaming is not supported")
+}
+
+func (s *ContentTemplateSuite) TestRendersNestedMessageFields() {
+	svc := s.annotatedTripService("{{ .title }} to {{ .address.city }}, {{ .address.country }}")
+	conn := &tripConn{method: svc.Methods().ByName("Echo")}
+	server := mcp.NewServer(&mcp.Implementation{Name: "gateway", Version: "test"}, nil)
+	s.Require().NoError(gateway.RegisterTools(server, conn, svc))
+	session := s.connect(server)
+	defer session.Close()
+
+	got, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "Echo", Arguments: map[string]any{"id": "x"}})
+
+	s.Require().NoError(err)
+	s.False(got.IsError)
+	s.Require().Len(got.Content, 1)
+	text := got.Content[0].(*mcp.TextContent)
+	s.Equal("Trip to Berlin, DE", text.Text)
+}
+
+func (s *ContentTemplateSuite) TestRendersRepeatedFieldWithRangeLoop() {
+	svc := s.annotatedTripService("Items:{{ range .items }} {{ .label }}{{ end }}")
+	conn := &tripConn{method: svc.Methods().ByName("Echo")}
+	server := mcp.NewServer(&mcp.Implementation{Name: "gateway", Version: "test"}, nil)
+	s.Require().NoError(gateway.RegisterTools(server, conn, svc))
+	session := s.connect(server)
+	defer session.Close()
+
+	got, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "Echo", Arguments: map[string]any{"id": "x"}})
+
+	s.Require().NoError(err)
+	s.False(got.IsError)
+	s.Require().Len(got.Content, 1)
+	text := got.Content[0].(*mcp.TextContent)
+	s.Equal("Items: map guide", text.Text)
+}

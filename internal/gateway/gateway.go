@@ -136,7 +136,7 @@ func RegisterTools(server *mcp.Server, conn grpc.ClientConnInterface, service pr
 		}
 		var contentTmpl *template.Template
 		if meta.ContentTemplate != "" {
-			parsed, err := template.New(meta.Name).Option("missingkey=error").Parse(meta.ContentTemplate)
+			parsed, err := template.New(meta.Name).Parse(meta.ContentTemplate)
 			if err != nil {
 				cfg.logger.Warn("invalid tool content template",
 					"grpc_service", string(service.FullName()),

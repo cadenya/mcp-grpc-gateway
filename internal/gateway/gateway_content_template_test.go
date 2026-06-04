@@ -98,7 +98,9 @@ func (s *ContentTemplateSuite) TestRendersTextOnlyContent() {
 }
 
 func (s *ContentTemplateSuite) TestTemplateExecutionErrorReturnsToolError() {
-	svc := s.annotatedService("{{ .missing }}")
+	// {{ .content.Nope }} attempts field access on a string value, which causes
+	// a genuine execution error regardless of missingkey semantics.
+	svc := s.annotatedService("{{ .content.Nope }}")
 	conn := &contentConn{method: svc.Methods().ByName("Echo"), content: "hello"}
 	server := mcp.NewServer(&mcp.Implementation{Name: "gateway", Version: "test"}, nil)
 	s.Require().NoError(gateway.RegisterTools(server, conn, svc))
@@ -109,6 +111,23 @@ func (s *ContentTemplateSuite) TestTemplateExecutionErrorReturnsToolError() {
 
 	s.Require().NoError(err)
 	s.True(got.IsError)
+}
+
+func (s *ContentTemplateSuite) TestRendersEmptyFieldAsEmptyString() {
+	svc := s.annotatedService("Session: {{ .content }}")
+	conn := &contentConn{method: svc.Methods().ByName("Echo"), content: ""}
+	server := mcp.NewServer(&mcp.Implementation{Name: "gateway", Version: "test"}, nil)
+	s.Require().NoError(gateway.RegisterTools(server, conn, svc))
+	session := s.connect(server)
+	defer session.Close()
+
+	got, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "Echo", Arguments: map[string]any{"id": "x"}})
+
+	s.Require().NoError(err)
+	s.False(got.IsError)
+	s.Require().Len(got.Content, 1)
+	text := got.Content[0].(*mcp.TextContent)
+	s.Equal("Session: ", text.Text)
 }
 
 func (s *ContentTemplateSuite) TestInvalidTemplateSkipsRegistrationAndWarns() {

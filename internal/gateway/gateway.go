@@ -1,10 +1,12 @@
 package gateway
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"text/template"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -132,13 +134,26 @@ func RegisterTools(server *mcp.Server, conn grpc.ClientConnInterface, service pr
 		if err != nil {
 			return fmt.Errorf("build schema for %s: %w", method.FullName(), err)
 		}
-		registerTool(server, conn, method, meta, inputSchema, cfg.toolCallTimeout)
+		var contentTmpl *template.Template
+		if meta.ContentTemplate != "" {
+			parsed, err := template.New(meta.Name).Option("missingkey=error").Parse(meta.ContentTemplate)
+			if err != nil {
+				cfg.logger.Warn("invalid tool content template",
+					"grpc_service", string(service.FullName()),
+					"tool_name", meta.Name,
+					"error", err,
+				)
+				continue
+			}
+			contentTmpl = parsed
+		}
+		registerTool(server, conn, method, meta, inputSchema, contentTmpl, cfg.toolCallTimeout)
 		cfg.registeredToolNames[meta.Name] = string(service.FullName())
 	}
 	return nil
 }
 
-func registerTool(server *mcp.Server, conn grpc.ClientConnInterface, method protoreflect.MethodDescriptor, meta annotations.ToolMetadata, inputSchema map[string]any, toolCallTimeout time.Duration) {
+func registerTool(server *mcp.Server, conn grpc.ClientConnInterface, method protoreflect.MethodDescriptor, meta annotations.ToolMetadata, inputSchema map[string]any, contentTmpl *template.Template, toolCallTimeout time.Duration) {
 	server.AddTool(&mcp.Tool{
 		Name:        meta.Name,
 		Description: meta.Description,
@@ -154,6 +169,18 @@ func registerTool(server *mcp.Server, conn grpc.ClientConnInterface, method prot
 			return &mcp.CallToolResult{
 				Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}},
 				IsError: true,
+			}, nil
+		}
+		if contentTmpl != nil {
+			var buf bytes.Buffer
+			if err := contentTmpl.Execute(&buf, out); err != nil {
+				return &mcp.CallToolResult{
+					Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}},
+					IsError: true,
+				}, nil
+			}
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{&mcp.TextContent{Text: buf.String()}},
 			}, nil
 		}
 		text, err := json.Marshal(out)

@@ -24,9 +24,10 @@ var serviceExtensionNames = []protoreflect.FullName{
 }
 
 type ToolMetadata struct {
-	Name        string
-	Description string
-	Annotated   bool
+	Name            string
+	Description     string
+	ContentTemplate string
+	Annotated       bool
 }
 
 type ServerMetadata struct {
@@ -183,6 +184,9 @@ func applyToolMessage(meta ToolMetadata, msg protoreflect.Message) ToolMetadata 
 	}
 	if description := stringField(msg, fields.ByName("description")); description != "" {
 		meta.Description = description
+	}
+	if contentTemplate := stringField(msg, fields.ByName("content_template")); contentTemplate != "" {
+		meta.ContentTemplate = contentTemplate
 	}
 	return meta
 }

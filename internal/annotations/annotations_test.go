@@ -93,6 +93,7 @@ func (s *MetadataSuite) SetupSuite() {
 				Field: []*descriptorpb.FieldDescriptorProto{
 					{Name: ptr("name"), JsonName: ptr("name"), Number: ptr[int32](1), Label: &optional, Type: &typeString},
 					{Name: ptr("description"), JsonName: ptr("description"), Number: ptr[int32](2), Label: &optional, Type: &typeString},
+					{Name: ptr("content_template"), JsonName: ptr("contentTemplate"), Number: ptr[int32](3), Label: &optional, Type: &typeString},
 				},
 			},
 		},
@@ -152,6 +153,7 @@ func (s *MetadataSuite) SetupSuite() {
 	tool := dynamicpb.NewMessage(ext.Message())
 	tool.Set(ext.Message().Fields().ByName("name"), protoreflect.ValueOfString("RecentObjectives"))
 	tool.Set(ext.Message().Fields().ByName("description"), protoreflect.ValueOfString("Retrieves recent objectives"))
+	tool.Set(ext.Message().Fields().ByName("content_template"), protoreflect.ValueOfString("Session: {{ .content }}"))
 	toolBytes, err := proto.Marshal(tool)
 	s.Require().NoError(err)
 	unknown := protowire.AppendTag(nil, protowire.Number(ext.Number()), protowire.BytesType)
@@ -205,6 +207,14 @@ func (s *MetadataSuite) TestReadsServiceToolPrefixWhenPresent() {
 	got := annotations.ForService(service)
 
 	s.Equal("objectives_", got.ToolPrefix)
+}
+
+func (s *MetadataSuite) TestReadsContentTemplateWhenPresent() {
+	method := s.file.Services().ByName("Service").Methods().ByName("Annotated")
+
+	got := annotations.ForMethod(method)
+
+	s.Equal("Session: {{ .content }}", got.ContentTemplate)
 }
 
 func ptr[T any](v T) *T {

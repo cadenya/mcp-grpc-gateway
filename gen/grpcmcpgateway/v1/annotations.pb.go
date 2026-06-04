@@ -170,11 +170,15 @@ func (x *Icon) GetSizes() []string {
 }
 
 type Tool struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Description   string                 `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	Name        string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Description string                 `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
+	// content_template is a Go text/template rendered against the gRPC
+	// response (protojson camelCase keys, e.g. {{ .content }}). When set, the
+	// MCP tool returns only the rendered text and no structured content.
+	ContentTemplate string `protobuf:"bytes,3,opt,name=content_template,json=contentTemplate,proto3" json:"content_template,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *Tool) Reset() {
@@ -217,6 +221,13 @@ func (x *Tool) GetName() string {
 func (x *Tool) GetDescription() string {
 	if x != nil {
 		return x.Description
+	}
+	return ""
+}
+
+func (x *Tool) GetContentTemplate() string {
+	if x != nil {
+		return x.ContentTemplate
 	}
 	return ""
 }
@@ -383,10 +394,11 @@ const file_grpcmcpgateway_v1_annotations_proto_rawDesc = "" +
 	"\x04Icon\x12\x10\n" +
 	"\x03src\x18\x01 \x01(\tR\x03src\x12\x1b\n" +
 	"\tmime_type\x18\x02 \x01(\tR\bmimeType\x12\x14\n" +
-	"\x05sizes\x18\x03 \x03(\tR\x05sizes\"<\n" +
+	"\x05sizes\x18\x03 \x03(\tR\x05sizes\"g\n" +
 	"\x04Tool\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12 \n" +
-	"\vdescription\x18\x02 \x01(\tR\vdescription\"*\n" +
+	"\vdescription\x18\x02 \x01(\tR\vdescription\x12)\n" +
+	"\x10content_template\x18\x03 \x01(\tR\x0fcontentTemplate\"*\n" +
 	"\aService\x12\x1f\n" +
 	"\vtool_prefix\x18\x01 \x01(\tR\n" +
 	"toolPrefix\")\n" +

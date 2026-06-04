@@ -27,6 +27,10 @@ message Icon {
 message Tool {
   string name = 1;
   string description = 2;
+  // content_template is a Go text/template rendered against the gRPC
+  // response (protojson camelCase keys, e.g. {{ .content }}). When set, the
+  // MCP tool returns only the rendered text and no structured content.
+  string content_template = 3;
 }
 
 // Service configures how a reflected gRPC service is exposed as MCP tools.

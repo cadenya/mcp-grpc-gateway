@@ -51,7 +51,7 @@ func InvokeUnary(ctx context.Context, conn grpc.ClientConnInterface, method prot
 		return nil, spanError(span, fmt.Errorf("invoke %s: %w", fullMethod, err))
 	}
 
-	raw, err := (protojson.MarshalOptions{UseProtoNames: false}).Marshal(resp)
+	raw, err := (protojson.MarshalOptions{UseProtoNames: false, EmitDefaultValues: true}).Marshal(resp)
 	if err != nil {
 		return nil, spanError(span, fmt.Errorf("marshal response: %w", err))
 	}

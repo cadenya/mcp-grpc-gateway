@@ -228,6 +228,45 @@ service Service {
 }
 ```
 
+### Text-only tool output with `content_template`
+
+By default a tool returns its gRPC response as JSON, available both as text and as structured content. Set `content_template` on a tool annotation to instead return a single block of text rendered from the response with a [Go `text/template`](https://pkg.go.dev/text/template). When `content_template` is set, the tool returns only the rendered text and no structured content — useful for shaping a response into LLM-friendly prose.
+
+```proto
+service Service {
+  rpc DescribeSession(DescribeSessionRequest) returns (DescribeSessionResponse) {
+    option (grpcmcpgateway.v1.tool) = {
+      name: "describe_session"
+      description: "Describes the session as a tutorial-ready summary."
+      content_template: "{{ .content }}"
+    };
+  }
+}
+
+message DescribeSessionResponse {
+  string content = 1;
+}
+```
+
+Template fields use the response's camelCase JSON names (for example a `created_at` proto field is `{{ .createdAt }}`). Fields that are absent or empty render as empty text rather than failing the call, so guard optional sections in the template if you need different output when a value is missing.
+
+Responses commonly nest other messages and repeated fields; reach nested fields with dotted paths and iterate repeated fields with `range`:
+
+```proto
+message Trip {
+  string title = 1;
+  Address address = 2;
+  repeated Stop stops = 3;
+}
+message Address { string city = 1; string country = 2; }
+message Stop { string label = 1; }
+```
+
+```
+content_template:
+  "{{ .title }} to {{ .address.city }}, {{ .address.country }}\nStops:{{ range .stops }} {{ .label }}{{ end }}"
+```
+
 If you want developers to explicitly disclose which RPCs become MCP tools, start the gateway with `--require-tool-annotations`. In that mode, only unary RPCs with `grpcmcpgateway.v1.tool` annotations are exposed.
 
 ```bash

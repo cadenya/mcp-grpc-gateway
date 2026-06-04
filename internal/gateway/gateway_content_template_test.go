@@ -145,3 +145,74 @@ func (c *contentConn) Invoke(ctx context.Context, method string, args any, reply
 func (c *contentConn) NewStream(context.Context, *grpc.StreamDesc, string, ...grpc.CallOption) (grpc.ClientStream, error) {
 	return nil, fmt.Errorf("streaming is not supported")
 }
+
+// annotatedDisplayNameService is like annotatedService but its Echo response
+// has a multi-word field (display_name) to exercise that templates must use
+// the camelCase protojson key (displayName), not the proto snake_case name.
+func (s *ContentTemplateSuite) annotatedDisplayNameService(contentTemplate string) protoreflect.ServiceDescriptor {
+	optional := descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL
+	typeString := descriptorpb.FieldDescriptorProto_TYPE_STRING
+
+	fdProto := &descriptorpb.FileDescriptorProto{
+		Name:       ptr("tmpl/v2/echo.proto"),
+		Package:    ptr("tmpl.v2"),
+		Syntax:     ptr("proto3"),
+		Dependency: []string{"grpcmcpgateway/v1/annotations.proto"},
+		MessageType: []*descriptorpb.DescriptorProto{
+			{Name: ptr("EchoRequest"), Field: []*descriptorpb.FieldDescriptorProto{
+				{Name: ptr("id"), JsonName: ptr("id"), Number: ptr[int32](1), Label: &optional, Type: &typeString},
+			}},
+			{Name: ptr("EchoResponse"), Field: []*descriptorpb.FieldDescriptorProto{
+				{Name: ptr("display_name"), JsonName: ptr("displayName"), Number: ptr[int32](1), Label: &optional, Type: &typeString},
+			}},
+		},
+		Service: []*descriptorpb.ServiceDescriptorProto{{
+			Name: ptr("EchoService"),
+			Method: []*descriptorpb.MethodDescriptorProto{
+				{Name: ptr("Echo"), InputType: ptr(".tmpl.v2.EchoRequest"), OutputType: ptr(".tmpl.v2.EchoResponse"), Options: &descriptorpb.MethodOptions{}},
+			},
+		}},
+	}
+
+	toolBytes, err := proto.Marshal(&grpcmcpgatewayv1.Tool{Name: "Echo", ContentTemplate: contentTemplate})
+	s.Require().NoError(err)
+	unknown := protowire.AppendTag(nil, protowire.Number(grpcmcpgatewayv1.ToolExtensionNumber), protowire.BytesType)
+	unknown = protowire.AppendBytes(unknown, toolBytes)
+	fdProto.Service[0].Method[0].Options.ProtoReflect().SetUnknown(unknown)
+
+	fd, err := protodesc.NewFile(fdProto, protoregistry.GlobalFiles)
+	s.Require().NoError(err)
+	return fd.Services().ByName("EchoService")
+}
+
+type displayNameConn struct {
+	method      protoreflect.MethodDescriptor
+	displayName string
+}
+
+func (c *displayNameConn) Invoke(ctx context.Context, method string, args any, reply any, _ ...grpc.CallOption) error {
+	resp := reply.(*dynamicpb.Message)
+	resp.Set(c.method.Output().Fields().ByName("display_name"), protoreflect.ValueOfString(c.displayName))
+	return nil
+}
+
+func (c *displayNameConn) NewStream(context.Context, *grpc.StreamDesc, string, ...grpc.CallOption) (grpc.ClientStream, error) {
+	return nil, fmt.Errorf("streaming is not supported")
+}
+
+func (s *ContentTemplateSuite) TestRendersUsingCamelCaseJSONKey() {
+	svc := s.annotatedDisplayNameService("Name: {{ .displayName }}")
+	conn := &displayNameConn{method: svc.Methods().ByName("Echo"), displayName: "Ada"}
+	server := mcp.NewServer(&mcp.Implementation{Name: "gateway", Version: "test"}, nil)
+	s.Require().NoError(gateway.RegisterTools(server, conn, svc))
+	session := s.connect(server)
+	defer session.Close()
+
+	got, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "Echo", Arguments: map[string]any{"id": "x"}})
+
+	s.Require().NoError(err)
+	s.False(got.IsError)
+	s.Require().Len(got.Content, 1)
+	text := got.Content[0].(*mcp.TextContent)
+	s.Equal("Name: Ada", text.Text)
+}

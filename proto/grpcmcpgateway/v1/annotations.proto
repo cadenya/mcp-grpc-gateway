@@ -31,6 +31,11 @@ message Tool {
   // response (protojson camelCase keys, e.g. {{ .content }}). When set, the
   // MCP tool returns only the rendered text and no structured content.
   string content_template = 3;
+  string title = 4;
+  optional bool read_only_hint = 5;
+  optional bool destructive_hint = 6;
+  optional bool idempotent_hint = 7;
+  optional bool open_world_hint = 8;
 }
 
 // Service configures how a reflected gRPC service is exposed as MCP tools.

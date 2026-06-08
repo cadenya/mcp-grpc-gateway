@@ -157,6 +157,7 @@ func registerTool(server *mcp.Server, conn grpc.ClientConnInterface, method prot
 	server.AddTool(&mcp.Tool{
 		Name:        meta.Name,
 		Description: meta.Description,
+		Annotations: meta.Annotations,
 		InputSchema: inputSchema,
 	}, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		if toolCallTimeout > 0 {

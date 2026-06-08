@@ -11,8 +11,10 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/suite"
+	grpcmcpgatewayv1 "go.cadenya.com/mcp-grpc-gateway/gen/grpcmcpgateway/v1"
 	"go.cadenya.com/mcp-grpc-gateway/internal/gateway"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -37,10 +39,13 @@ func (s *GatewaySuite) SetupTest() {
 	typeString := descriptorpb.FieldDescriptorProto_TYPE_STRING
 	typeBool := descriptorpb.FieldDescriptorProto_TYPE_BOOL
 
-	fd, err := protodesc.NewFile(&descriptorpb.FileDescriptorProto{
+	fdProto := &descriptorpb.FileDescriptorProto{
 		Name:    ptr("test/v1/echo.proto"),
 		Package: ptr("test.v1"),
 		Syntax:  ptr("proto3"),
+		Dependency: []string{
+			"grpcmcpgateway/v1/annotations.proto",
+		},
 		MessageType: []*descriptorpb.DescriptorProto{
 			{Name: ptr("EchoRequest"), Field: []*descriptorpb.FieldDescriptorProto{
 				{Name: ptr("id"), JsonName: ptr("id"), Number: ptr[int32](1), Label: &optional, Type: &typeString},
@@ -67,7 +72,65 @@ func (s *GatewaySuite) SetupTest() {
 				{Name: ptr("Echo"), InputType: ptr(".test.v1.EchoRequest"), OutputType: ptr(".test.v1.EchoResponse")},
 			},
 		}},
-	}, nil)
+	}
+	baseFiles, err := protodesc.NewFiles(&descriptorpb.FileDescriptorSet{File: []*descriptorpb.FileDescriptorProto{
+		protodesc.ToFileDescriptorProto(descriptorpb.File_google_protobuf_descriptor_proto),
+	}})
+	s.Require().NoError(err)
+	toolFile, err := protodesc.NewFile(&descriptorpb.FileDescriptorProto{
+		Name:    ptr("grpcmcpgateway/v1/annotations.proto"),
+		Package: ptr("grpcmcpgateway.v1"),
+		Syntax:  ptr("proto3"),
+		Dependency: []string{
+			"google/protobuf/descriptor.proto",
+		},
+		MessageType: []*descriptorpb.DescriptorProto{{
+			Name: ptr("Tool"),
+			Field: []*descriptorpb.FieldDescriptorProto{
+				{Name: ptr("title"), JsonName: ptr("title"), Number: ptr[int32](4), Label: &optional, Type: &typeString},
+				{Name: ptr("read_only_hint"), JsonName: ptr("readOnlyHint"), Number: ptr[int32](5), Label: &optional, Type: &typeBool, Proto3Optional: ptr(true), OneofIndex: ptr[int32](0)},
+				{Name: ptr("destructive_hint"), JsonName: ptr("destructiveHint"), Number: ptr[int32](6), Label: &optional, Type: &typeBool, Proto3Optional: ptr(true), OneofIndex: ptr[int32](1)},
+				{Name: ptr("idempotent_hint"), JsonName: ptr("idempotentHint"), Number: ptr[int32](7), Label: &optional, Type: &typeBool, Proto3Optional: ptr(true), OneofIndex: ptr[int32](2)},
+				{Name: ptr("open_world_hint"), JsonName: ptr("openWorldHint"), Number: ptr[int32](8), Label: &optional, Type: &typeBool, Proto3Optional: ptr(true), OneofIndex: ptr[int32](3)},
+			},
+			OneofDecl: []*descriptorpb.OneofDescriptorProto{
+				{Name: ptr("_read_only_hint")},
+				{Name: ptr("_destructive_hint")},
+				{Name: ptr("_idempotent_hint")},
+				{Name: ptr("_open_world_hint")},
+			},
+		}},
+		Extension: []*descriptorpb.FieldDescriptorProto{{
+			Name:     ptr("tool"),
+			Number:   ptr(grpcmcpgatewayv1.ToolExtensionNumber),
+			Label:    &optional,
+			Type:     ptr(descriptorpb.FieldDescriptorProto_TYPE_MESSAGE),
+			TypeName: ptr(".grpcmcpgateway.v1.Tool"),
+			Extendee: ptr(".google.protobuf.MethodOptions"),
+			JsonName: ptr("tool"),
+		}},
+	}, baseFiles)
+	s.Require().NoError(err)
+	ext := toolFile.Extensions().ByName("tool")
+	tool := dynamicpb.NewMessage(ext.Message())
+	tool.Set(ext.Message().Fields().ByName("title"), protoreflect.ValueOfString("Echo request"))
+	tool.Set(ext.Message().Fields().ByName("read_only_hint"), protoreflect.ValueOfBool(true))
+	tool.Set(ext.Message().Fields().ByName("destructive_hint"), protoreflect.ValueOfBool(false))
+	tool.Set(ext.Message().Fields().ByName("idempotent_hint"), protoreflect.ValueOfBool(true))
+	tool.Set(ext.Message().Fields().ByName("open_world_hint"), protoreflect.ValueOfBool(false))
+	toolBytes, err := proto.Marshal(tool)
+	s.Require().NoError(err)
+	unknown := protowire.AppendTag(nil, protowire.Number(ext.Number()), protowire.BytesType)
+	unknown = protowire.AppendBytes(unknown, toolBytes)
+	fdProto.Service[0].Method[0].Options = &descriptorpb.MethodOptions{}
+	fdProto.Service[0].Method[0].Options.ProtoReflect().SetUnknown(unknown)
+	files, err := protodesc.NewFiles(&descriptorpb.FileDescriptorSet{File: []*descriptorpb.FileDescriptorProto{
+		protodesc.ToFileDescriptorProto(descriptorpb.File_google_protobuf_descriptor_proto),
+		protodesc.ToFileDescriptorProto(toolFile),
+		fdProto,
+	}})
+	s.Require().NoError(err)
+	fd, err := files.FindFileByPath("test/v1/echo.proto")
 	s.Require().NoError(err)
 	s.service = fd.Services().ByName("EchoService")
 	s.other = fd.Services().ByName("OtherService")
@@ -98,9 +161,32 @@ func (s *GatewaySuite) TestRegistersUnaryRPCsAsMCPTools() {
 	}, normalizeSchema(s.T(), tools[0].InputSchema))
 }
 
+func (s *GatewaySuite) TestRegistersToolAnnotations() {
+	server := mcp.NewServer(&mcp.Implementation{Name: "gateway", Version: "test"}, nil)
+	s.Require().NoError(gateway.RegisterTools(server, s.conn, s.service))
+	session := s.connect(server)
+	defer session.Close()
+
+	var tools []*mcp.Tool
+	for tool, err := range session.Tools(context.Background(), nil) {
+		s.Require().NoError(err)
+		tools = append(tools, tool)
+	}
+
+	s.Require().Len(tools, 1)
+	s.Require().NotNil(tools[0].Annotations)
+	s.Equal("Echo request", tools[0].Annotations.Title)
+	s.True(tools[0].Annotations.ReadOnlyHint)
+	s.Require().NotNil(tools[0].Annotations.DestructiveHint)
+	s.False(*tools[0].Annotations.DestructiveHint)
+	s.True(tools[0].Annotations.IdempotentHint)
+	s.Require().NotNil(tools[0].Annotations.OpenWorldHint)
+	s.False(*tools[0].Annotations.OpenWorldHint)
+}
+
 func (s *GatewaySuite) TestCanRequireToolAnnotations() {
 	server := mcp.NewServer(&mcp.Implementation{Name: "gateway", Version: "test"}, nil)
-	s.Require().NoError(gateway.RegisterTools(server, s.conn, s.service, gateway.WithRequireToolAnnotations(true)))
+	s.Require().NoError(gateway.RegisterTools(server, s.conn, s.other, gateway.WithRequireToolAnnotations(true)))
 	session := s.connect(server)
 	defer session.Close()
 

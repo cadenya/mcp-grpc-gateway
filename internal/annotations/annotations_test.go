@@ -26,6 +26,7 @@ func TestMetadataSuite(t *testing.T) {
 func (s *MetadataSuite) SetupSuite() {
 	optional := descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL
 	typeString := descriptorpb.FieldDescriptorProto_TYPE_STRING
+	typeBool := descriptorpb.FieldDescriptorProto_TYPE_BOOL
 	typeMessage := descriptorpb.FieldDescriptorProto_TYPE_MESSAGE
 
 	fdProto := &descriptorpb.FileDescriptorProto{
@@ -94,6 +95,17 @@ func (s *MetadataSuite) SetupSuite() {
 					{Name: ptr("name"), JsonName: ptr("name"), Number: ptr[int32](1), Label: &optional, Type: &typeString},
 					{Name: ptr("description"), JsonName: ptr("description"), Number: ptr[int32](2), Label: &optional, Type: &typeString},
 					{Name: ptr("content_template"), JsonName: ptr("contentTemplate"), Number: ptr[int32](3), Label: &optional, Type: &typeString},
+					{Name: ptr("title"), JsonName: ptr("title"), Number: ptr[int32](4), Label: &optional, Type: &typeString},
+					{Name: ptr("read_only_hint"), JsonName: ptr("readOnlyHint"), Number: ptr[int32](5), Label: &optional, Type: &typeBool, Proto3Optional: ptr(true), OneofIndex: ptr[int32](0)},
+					{Name: ptr("destructive_hint"), JsonName: ptr("destructiveHint"), Number: ptr[int32](6), Label: &optional, Type: &typeBool, Proto3Optional: ptr(true), OneofIndex: ptr[int32](1)},
+					{Name: ptr("idempotent_hint"), JsonName: ptr("idempotentHint"), Number: ptr[int32](7), Label: &optional, Type: &typeBool, Proto3Optional: ptr(true), OneofIndex: ptr[int32](2)},
+					{Name: ptr("open_world_hint"), JsonName: ptr("openWorldHint"), Number: ptr[int32](8), Label: &optional, Type: &typeBool, Proto3Optional: ptr(true), OneofIndex: ptr[int32](3)},
+				},
+				OneofDecl: []*descriptorpb.OneofDescriptorProto{
+					{Name: ptr("_read_only_hint")},
+					{Name: ptr("_destructive_hint")},
+					{Name: ptr("_idempotent_hint")},
+					{Name: ptr("_open_world_hint")},
 				},
 			},
 		},
@@ -154,6 +166,11 @@ func (s *MetadataSuite) SetupSuite() {
 	tool.Set(ext.Message().Fields().ByName("name"), protoreflect.ValueOfString("RecentObjectives"))
 	tool.Set(ext.Message().Fields().ByName("description"), protoreflect.ValueOfString("Retrieves recent objectives"))
 	tool.Set(ext.Message().Fields().ByName("content_template"), protoreflect.ValueOfString("Session: {{ .content }}"))
+	tool.Set(ext.Message().Fields().ByName("title"), protoreflect.ValueOfString("Recent objectives"))
+	tool.Set(ext.Message().Fields().ByName("read_only_hint"), protoreflect.ValueOfBool(true))
+	tool.Set(ext.Message().Fields().ByName("destructive_hint"), protoreflect.ValueOfBool(false))
+	tool.Set(ext.Message().Fields().ByName("idempotent_hint"), protoreflect.ValueOfBool(true))
+	tool.Set(ext.Message().Fields().ByName("open_world_hint"), protoreflect.ValueOfBool(false))
 	toolBytes, err := proto.Marshal(tool)
 	s.Require().NoError(err)
 	unknown := protowire.AppendTag(nil, protowire.Number(ext.Number()), protowire.BytesType)
@@ -215,6 +232,21 @@ func (s *MetadataSuite) TestReadsContentTemplateWhenPresent() {
 	got := annotations.ForMethod(method)
 
 	s.Equal("Session: {{ .content }}", got.ContentTemplate)
+}
+
+func (s *MetadataSuite) TestReadsToolAnnotationsWhenPresent() {
+	method := s.file.Services().ByName("Service").Methods().ByName("Annotated")
+
+	got := annotations.ForMethod(method)
+
+	s.Require().NotNil(got.Annotations)
+	s.Equal("Recent objectives", got.Annotations.Title)
+	s.True(got.Annotations.ReadOnlyHint)
+	s.Require().NotNil(got.Annotations.DestructiveHint)
+	s.False(*got.Annotations.DestructiveHint)
+	s.True(got.Annotations.IdempotentHint)
+	s.Require().NotNil(got.Annotations.OpenWorldHint)
+	s.False(*got.Annotations.OpenWorldHint)
 }
 
 func ptr[T any](v T) *T {

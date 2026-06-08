@@ -3,6 +3,7 @@ package annotations
 import (
 	"fmt"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -27,6 +28,7 @@ type ToolMetadata struct {
 	Name            string
 	Description     string
 	ContentTemplate string
+	Annotations     *mcp.ToolAnnotations
 	Annotated       bool
 }
 
@@ -188,7 +190,40 @@ func applyToolMessage(meta ToolMetadata, msg protoreflect.Message) ToolMetadata 
 	if contentTemplate := stringField(msg, fields.ByName("content_template")); contentTemplate != "" {
 		meta.ContentTemplate = contentTemplate
 	}
+	if annotations := toolAnnotations(msg); annotations != nil {
+		meta.Annotations = annotations
+	}
 	return meta
+}
+
+func toolAnnotations(msg protoreflect.Message) *mcp.ToolAnnotations {
+	fields := msg.Descriptor().Fields()
+	var annotations mcp.ToolAnnotations
+	hasAnnotations := false
+	if title := stringField(msg, fields.ByName("title")); title != "" {
+		annotations.Title = title
+		hasAnnotations = true
+	}
+	if readOnlyHint, ok := boolField(msg, fields.ByName("read_only_hint")); ok {
+		annotations.ReadOnlyHint = readOnlyHint
+		hasAnnotations = true
+	}
+	if destructiveHint, ok := boolField(msg, fields.ByName("destructive_hint")); ok {
+		annotations.DestructiveHint = &destructiveHint
+		hasAnnotations = true
+	}
+	if idempotentHint, ok := boolField(msg, fields.ByName("idempotent_hint")); ok {
+		annotations.IdempotentHint = idempotentHint
+		hasAnnotations = true
+	}
+	if openWorldHint, ok := boolField(msg, fields.ByName("open_world_hint")); ok {
+		annotations.OpenWorldHint = &openWorldHint
+		hasAnnotations = true
+	}
+	if !hasAnnotations {
+		return nil
+	}
+	return &annotations
 }
 
 func applyServerMessage(meta ServerMetadata, msg protoreflect.Message) ServerMetadata {
@@ -267,6 +302,13 @@ func stringField(msg protoreflect.Message, field protoreflect.FieldDescriptor) s
 		return ""
 	}
 	return msg.Get(field).String()
+}
+
+func boolField(msg protoreflect.Message, field protoreflect.FieldDescriptor) (bool, bool) {
+	if field == nil || field.Kind() != protoreflect.BoolKind || !msg.Has(field) {
+		return false, false
+	}
+	return msg.Get(field).Bool(), true
 }
 
 func findExtension(file protoreflect.FileDescriptor, names []protoreflect.FullName) protoreflect.ExtensionDescriptor {

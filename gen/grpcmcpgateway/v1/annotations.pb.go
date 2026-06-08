@@ -177,6 +177,11 @@ type Tool struct {
 	// response (protojson camelCase keys, e.g. {{ .content }}). When set, the
 	// MCP tool returns only the rendered text and no structured content.
 	ContentTemplate string `protobuf:"bytes,3,opt,name=content_template,json=contentTemplate,proto3" json:"content_template,omitempty"`
+	Title           string `protobuf:"bytes,4,opt,name=title,proto3" json:"title,omitempty"`
+	ReadOnlyHint    *bool  `protobuf:"varint,5,opt,name=read_only_hint,json=readOnlyHint,proto3,oneof" json:"read_only_hint,omitempty"`
+	DestructiveHint *bool  `protobuf:"varint,6,opt,name=destructive_hint,json=destructiveHint,proto3,oneof" json:"destructive_hint,omitempty"`
+	IdempotentHint  *bool  `protobuf:"varint,7,opt,name=idempotent_hint,json=idempotentHint,proto3,oneof" json:"idempotent_hint,omitempty"`
+	OpenWorldHint   *bool  `protobuf:"varint,8,opt,name=open_world_hint,json=openWorldHint,proto3,oneof" json:"open_world_hint,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -230,6 +235,41 @@ func (x *Tool) GetContentTemplate() string {
 		return x.ContentTemplate
 	}
 	return ""
+}
+
+func (x *Tool) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *Tool) GetReadOnlyHint() bool {
+	if x != nil && x.ReadOnlyHint != nil {
+		return *x.ReadOnlyHint
+	}
+	return false
+}
+
+func (x *Tool) GetDestructiveHint() bool {
+	if x != nil && x.DestructiveHint != nil {
+		return *x.DestructiveHint
+	}
+	return false
+}
+
+func (x *Tool) GetIdempotentHint() bool {
+	if x != nil && x.IdempotentHint != nil {
+		return *x.IdempotentHint
+	}
+	return false
+}
+
+func (x *Tool) GetOpenWorldHint() bool {
+	if x != nil && x.OpenWorldHint != nil {
+		return *x.OpenWorldHint
+	}
+	return false
 }
 
 // Service configures how a reflected gRPC service is exposed as MCP tools.
@@ -394,11 +434,20 @@ const file_grpcmcpgateway_v1_annotations_proto_rawDesc = "" +
 	"\x04Icon\x12\x10\n" +
 	"\x03src\x18\x01 \x01(\tR\x03src\x12\x1b\n" +
 	"\tmime_type\x18\x02 \x01(\tR\bmimeType\x12\x14\n" +
-	"\x05sizes\x18\x03 \x03(\tR\x05sizes\"g\n" +
+	"\x05sizes\x18\x03 \x03(\tR\x05sizes\"\x83\x03\n" +
 	"\x04Tool\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12 \n" +
 	"\vdescription\x18\x02 \x01(\tR\vdescription\x12)\n" +
-	"\x10content_template\x18\x03 \x01(\tR\x0fcontentTemplate\"*\n" +
+	"\x10content_template\x18\x03 \x01(\tR\x0fcontentTemplate\x12\x14\n" +
+	"\x05title\x18\x04 \x01(\tR\x05title\x12)\n" +
+	"\x0eread_only_hint\x18\x05 \x01(\bH\x00R\freadOnlyHint\x88\x01\x01\x12.\n" +
+	"\x10destructive_hint\x18\x06 \x01(\bH\x01R\x0fdestructiveHint\x88\x01\x01\x12,\n" +
+	"\x0fidempotent_hint\x18\a \x01(\bH\x02R\x0eidempotentHint\x88\x01\x01\x12+\n" +
+	"\x0fopen_world_hint\x18\b \x01(\bH\x03R\ropenWorldHint\x88\x01\x01B\x11\n" +
+	"\x0f_read_only_hintB\x13\n" +
+	"\x11_destructive_hintB\x12\n" +
+	"\x10_idempotent_hintB\x12\n" +
+	"\x10_open_world_hint\"*\n" +
 	"\aService\x12\x1f\n" +
 	"\vtool_prefix\x18\x01 \x01(\tR\n" +
 	"toolPrefix\")\n" +
@@ -454,6 +503,7 @@ func file_grpcmcpgateway_v1_annotations_proto_init() {
 	if File_grpcmcpgateway_v1_annotations_proto != nil {
 		return
 	}
+	file_grpcmcpgateway_v1_annotations_proto_msgTypes[2].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

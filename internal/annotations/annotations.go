@@ -3,7 +3,6 @@ package annotations
 import (
 	"fmt"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -28,8 +27,16 @@ type ToolMetadata struct {
 	Name            string
 	Description     string
 	ContentTemplate string
-	Annotations     *mcp.ToolAnnotations
+	Annotations     *ToolAnnotations
 	Annotated       bool
+}
+
+type ToolAnnotations struct {
+	Title           string `json:"title,omitempty"`
+	ReadOnlyHint    bool   `json:"readOnlyHint,omitempty"`
+	DestructiveHint *bool  `json:"destructiveHint,omitempty"`
+	IdempotentHint  bool   `json:"idempotentHint,omitempty"`
+	OpenWorldHint   *bool  `json:"openWorldHint,omitempty"`
 }
 
 type ServerMetadata struct {
@@ -196,9 +203,9 @@ func applyToolMessage(meta ToolMetadata, msg protoreflect.Message) ToolMetadata 
 	return meta
 }
 
-func toolAnnotations(msg protoreflect.Message) *mcp.ToolAnnotations {
+func toolAnnotations(msg protoreflect.Message) *ToolAnnotations {
 	fields := msg.Descriptor().Fields()
-	var annotations mcp.ToolAnnotations
+	var annotations ToolAnnotations
 	hasAnnotations := false
 	if title := stringField(msg, fields.ByName("title")); title != "" {
 		annotations.Title = title

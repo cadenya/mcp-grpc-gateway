@@ -18,13 +18,14 @@ The compose stack exposes:
 
 The gRPC greeter listens on `greeter:50051` inside the compose network. It is not published to the host because the gateway is the public entry point for this example.
 
-## Initialize MCP
+## Discover Server
 
 ```bash
 curl -sS http://localhost:8080/mcp \
   -H 'Content-Type: application/json' \
-  -H 'Accept: application/json, text/event-stream' \
-  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"curl","version":"demo"}}}'
+  -H 'MCP-Protocol-Version: 2026-07-28' \
+  -H 'Mcp-Method: server/discover' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{}}'
 ```
 
 ## List Tools
@@ -32,7 +33,8 @@ curl -sS http://localhost:8080/mcp \
 ```bash
 curl -sS http://localhost:8080/mcp \
   -H 'Content-Type: application/json' \
-  -H 'Accept: application/json, text/event-stream' \
+  -H 'MCP-Protocol-Version: 2026-07-28' \
+  -H 'Mcp-Method: tools/list' \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
 ```
 
@@ -43,7 +45,9 @@ You should see a `greet_user` tool.
 ```bash
 curl -sS http://localhost:8080/mcp \
   -H 'Content-Type: application/json' \
-  -H 'Accept: application/json, text/event-stream' \
+  -H 'MCP-Protocol-Version: 2026-07-28' \
+  -H 'Mcp-Method: tools/call' \
+  -H 'Mcp-Name: greet_user' \
   -H 'Authorization: Bearer demo-token' \
   -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"greet_user","arguments":{"name":"Ada"}}}'
 ```

@@ -3,17 +3,15 @@ package functional_test
 import (
 	"bytes"
 	"context"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
 	grpcmcpgatewayv1 "go.cadenya.com/mcp-grpc-gateway/gen/grpcmcpgateway/v1"
-	"go.cadenya.com/mcp-grpc-gateway/internal/discovery"
-	"go.cadenya.com/mcp-grpc-gateway/internal/gateway"
-	"go.cadenya.com/mcp-grpc-gateway/internal/mcphttp"
+	"go.cadenya.com/mcp-grpc-gateway/internal/mcpjson"
 	"go.cadenya.com/mcp-grpc-gateway/internal/testpb"
 	"go.cadenya.com/mcp-grpc-gateway/internal/toolcache"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -39,54 +37,33 @@ func TestAnnotatedGRPCServiceIsExposedThroughMCPEndpoint(t *testing.T) {
 	require.NoError(t, err)
 	defer grpcClient.Close()
 
-	service, err := discovery.LoadService(ctx, grpcClient, "functional.v1.GreeterService")
-	require.NoError(t, err)
-
-	mcpServer := gateway.NewServer(gateway.ServerMetadata{
-		Name:         "runtime-gateway",
-		Title:        "Runtime Gateway",
-		Version:      "2.0.0",
-		Instructions: "Use runtime metadata.",
-		WebsiteURL:   "https://example.com/runtime",
+	cache := toolcache.New(toolcache.Options{
+		Conn:    grpcClient,
+		Service: "functional.v1.GreeterService",
+		Server: toolcache.ServerMetadata{
+			Name:         "runtime-gateway",
+			Title:        "Runtime Gateway",
+			Version:      "2.0.0",
+			Instructions: "Use runtime metadata.",
+			WebsiteURL:   "https://example.com/runtime",
+		},
 	})
-	require.NoError(t, gateway.RegisterTools(mcpServer, grpcClient, service))
+	require.NoError(t, cache.Reload(ctx))
 
-	httpServer := httptest.NewServer(mcphttp.NewHandler(staticProvider{server: mcpServer}, nil))
+	httpServer := httptest.NewServer(mcpjson.NewHandler(cache, nil))
 	defer httpServer.Close()
-	assertStatelessHTTPInitialize(t, httpServer)
 
-	mcpClient := mcp.NewClient(&mcp.Implementation{Name: "functional-client", Version: "test"}, nil)
-	session, err := mcpClient.Connect(ctx, &mcp.StreamableClientTransport{
-		Endpoint:             httpServer.URL,
-		HTTPClient:           httpServer.Client(),
-		DisableStandaloneSSE: true,
-	}, nil)
-	require.NoError(t, err)
-	defer session.Close()
+	discover := postMCP(t, httpServer, "server/discover", "", nil, `{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{}}`)
+	require.Equal(t, http.StatusOK, discover.StatusCode)
+	require.JSONEq(t, `{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2026-07-28","serverInfo":{"name":"runtime-gateway","title":"Runtime Gateway","version":"2.0.0","websiteUrl":"https://example.com/runtime"},"capabilities":{"tools":{}},"instructions":"Use runtime metadata."}}`, discover.Body)
 
-	init := session.InitializeResult()
-	require.Equal(t, "runtime-gateway", init.ServerInfo.Name)
-	require.Equal(t, "Runtime Gateway", init.ServerInfo.Title)
-	require.Equal(t, "2.0.0", init.ServerInfo.Version)
-	require.Equal(t, "https://example.com/runtime", init.ServerInfo.WebsiteURL)
-	require.Equal(t, "Use runtime metadata.", init.Instructions)
+	tools := postMCP(t, httpServer, "tools/list", "", map[string]string{"Accept": "application/json"}, `{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}`)
+	require.Equal(t, http.StatusOK, tools.StatusCode)
+	require.JSONEq(t, `{"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"greet_user","description":"Greets a user by name","inputSchema":{"type":"object","properties":{"name":{"type":"string"}}}}],"ttlMs":0,"cacheScope":"public"}}`, tools.Body)
 
-	var tools []*mcp.Tool
-	for tool, err := range session.Tools(ctx, nil) {
-		require.NoError(t, err)
-		tools = append(tools, tool)
-	}
-	require.Len(t, tools, 1)
-	require.Equal(t, "greet_user", tools[0].Name)
-	require.Equal(t, "Greets a user by name", tools[0].Description)
-
-	result, err := session.CallTool(ctx, &mcp.CallToolParams{
-		Name:      "greet_user",
-		Arguments: map[string]any{"name": "Ada"},
-	})
-	require.NoError(t, err)
-	require.False(t, result.IsError)
-	require.Equal(t, map[string]any{"greeting": "Hello, Ada"}, result.StructuredContent)
+	call := postMCP(t, httpServer, "tools/call", "greet_user", nil, `{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"greet_user","arguments":{"name":"Ada"}}}`)
+	require.Equal(t, http.StatusOK, call.StatusCode)
+	require.JSONEq(t, `{"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"{\"greeting\":\"Hello, Ada\"}"}],"structuredContent":{"greeting":"Hello, Ada"}}}`, call.Body)
 }
 
 func TestLiveGRPCReflectionReturnsToolAnnotations(t *testing.T) {
@@ -135,7 +112,7 @@ func TestMCPEndpointKeepsCachedToolsWhenReflectionReloadFails(t *testing.T) {
 	initial := cache.Current()
 	require.NotNil(t, initial)
 
-	httpServer := httptest.NewServer(mcphttp.NewHandler(cache, nil))
+	httpServer := httptest.NewServer(mcpjson.NewHandler(cache, nil))
 	defer httpServer.Close()
 
 	cache.SetLoader(func(context.Context, grpc.ClientConnInterface, []string) ([]protoreflect.ServiceDescriptor, error) {
@@ -144,22 +121,9 @@ func TestMCPEndpointKeepsCachedToolsWhenReflectionReloadFails(t *testing.T) {
 	require.Error(t, cache.Reload(ctx))
 	require.Same(t, initial, cache.Current())
 
-	mcpClient := mcp.NewClient(&mcp.Implementation{Name: "functional-client", Version: "test"}, nil)
-	session, err := mcpClient.Connect(ctx, &mcp.StreamableClientTransport{
-		Endpoint:             httpServer.URL,
-		HTTPClient:           httpServer.Client(),
-		DisableStandaloneSSE: true,
-	}, nil)
-	require.NoError(t, err)
-	defer session.Close()
-
-	var tools []*mcp.Tool
-	for tool, err := range session.Tools(ctx, nil) {
-		require.NoError(t, err)
-		tools = append(tools, tool)
-	}
-	require.Len(t, tools, 1)
-	require.Equal(t, "greet_user", tools[0].Name)
+	tools := postMCP(t, httpServer, "tools/list", "", nil, `{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}`)
+	require.Equal(t, http.StatusOK, tools.StatusCode)
+	require.JSONEq(t, `{"jsonrpc":"2.0","id":1,"result":{"tools":[{"name":"greet_user","description":"Greets a user by name","inputSchema":{"type":"object","properties":{"name":{"type":"string"}}}}],"ttlMs":0,"cacheScope":"public"}}`, tools.Body)
 }
 
 func TestRequireToolAnnotationsStillExposesAnnotatedTools(t *testing.T) {
@@ -178,16 +142,12 @@ func TestRequireToolAnnotationsStillExposesAnnotatedTools(t *testing.T) {
 	})
 	require.NoError(t, cache.Reload(ctx))
 
-	session := connectHTTPMCP(t, cache)
-	defer session.Close()
+	httpServer := httptest.NewServer(mcpjson.NewHandler(cache, nil))
+	defer httpServer.Close()
 
-	var tools []*mcp.Tool
-	for tool, err := range session.Tools(ctx, nil) {
-		require.NoError(t, err)
-		tools = append(tools, tool)
-	}
-	require.Len(t, tools, 1)
-	require.Equal(t, "greet_user", tools[0].Name)
+	tools := postMCP(t, httpServer, "tools/list", "", nil, `{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}`)
+	require.Equal(t, http.StatusOK, tools.StatusCode)
+	require.JSONEq(t, `{"jsonrpc":"2.0","id":1,"result":{"tools":[{"name":"greet_user","description":"Greets a user by name","inputSchema":{"type":"object","properties":{"name":{"type":"string"}}}}],"ttlMs":0,"cacheScope":"public"}}`, tools.Body)
 }
 
 func TestForwardHeaderReachesGRPCMetadata(t *testing.T) {
@@ -206,29 +166,39 @@ func TestForwardHeaderReachesGRPCMetadata(t *testing.T) {
 	})
 	require.NoError(t, cache.Reload(ctx))
 
-	httpServer := httptest.NewServer(mcphttp.NewHandler(cache, nil, mcphttp.WithForwardHeaders([]string{"Authorization"})))
+	httpServer := httptest.NewServer(mcpjson.NewHandler(cache, nil, mcpjson.WithForwardHeaders([]string{"Authorization"})))
 	defer httpServer.Close()
 
-	mcpClient := mcp.NewClient(&mcp.Implementation{Name: "functional-client", Version: "test"}, nil)
-	session, err := mcpClient.Connect(ctx, &mcp.StreamableClientTransport{
-		Endpoint: httpServer.URL,
-		HTTPClient: &http.Client{Transport: headerTransport{
-			base: httpServer.Client().Transport,
-			key:  "Authorization",
-			val:  "Bearer test-token",
-		}},
-		DisableStandaloneSSE: true,
-	}, nil)
-	require.NoError(t, err)
-	defer session.Close()
-
-	result, err := session.CallTool(ctx, &mcp.CallToolParams{
-		Name:      "greet_user",
-		Arguments: map[string]any{"name": "Ada"},
-	})
-	require.NoError(t, err)
-	require.False(t, result.IsError)
+	resp := postMCP(t, httpServer, "tools/call", "greet_user", map[string]string{"Authorization": "Bearer test-token"}, `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"greet_user","arguments":{"name":"Ada"}}}`)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 	require.Equal(t, "Bearer test-token", <-seenAuthorization)
+}
+
+func TestRawHTTPToolCallReturnsOKWithResultBody(t *testing.T) {
+	ctx := context.Background()
+	grpcAddr, stopGRPC := startGreeterGRPCServer(t)
+	defer stopGRPC()
+
+	grpcClient, err := grpc.NewClient(grpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+	defer grpcClient.Close()
+
+	cache := toolcache.New(toolcache.Options{
+		Conn:    grpcClient,
+		Service: "functional.v1.GreeterService",
+	})
+	require.NoError(t, cache.Reload(ctx))
+
+	httpServer := httptest.NewServer(mcpjson.NewHandler(cache, nil))
+	defer httpServer.Close()
+
+	resp := postMCP(t, httpServer, "tools/call", "greet_user", map[string]string{"Accept": "application/json"}, `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"greet_user","arguments":{"name":"Ada"}}}`)
+	require.Equal(t, http.StatusOK, resp.StatusCode, resp.Body)
+	require.JSONEq(t, `{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"{\"greeting\":\"Hello, Ada\"}"}],"structuredContent":{"greeting":"Hello, Ada"}}}`, resp.Body)
+
+	mismatch := postMCP(t, httpServer, "tools/call", "wrong_tool", nil, `{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"greet_user","arguments":{"name":"Ada"}}}`)
+	require.Equal(t, http.StatusBadRequest, mismatch.StatusCode)
+	require.Contains(t, mismatch.Body, "Mcp-Name header value")
 }
 
 func TestTraceContextPropagatesFromMCPHTTPToGRPCMetadata(t *testing.T) {
@@ -262,28 +232,11 @@ func TestTraceContextPropagatesFromMCPHTTPToGRPCMetadata(t *testing.T) {
 	})
 	require.NoError(t, cache.Reload(ctx))
 
-	httpServer := httptest.NewServer(mcphttp.NewHandler(cache, nil))
+	httpServer := httptest.NewServer(mcpjson.NewHandler(cache, nil))
 	defer httpServer.Close()
 
-	mcpClient := mcp.NewClient(&mcp.Implementation{Name: "functional-client", Version: "test"}, nil)
-	session, err := mcpClient.Connect(ctx, &mcp.StreamableClientTransport{
-		Endpoint: httpServer.URL,
-		HTTPClient: &http.Client{Transport: headerTransport{
-			base: httpServer.Client().Transport,
-			key:  "traceparent",
-			val:  "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
-		}},
-		DisableStandaloneSSE: true,
-	}, nil)
-	require.NoError(t, err)
-	defer session.Close()
-
-	result, err := session.CallTool(ctx, &mcp.CallToolParams{
-		Name:      "greet_user",
-		Arguments: map[string]any{"name": "Ada"},
-	})
-	require.NoError(t, err)
-	require.False(t, result.IsError)
+	resp := postMCP(t, httpServer, "tools/call", "greet_user", map[string]string{"traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"}, `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"greet_user","arguments":{"name":"Ada"}}}`)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	traceparent := <-seenTraceparent
 	require.Contains(t, traceparent, "00-4bf92f3577b34da6a3ce929d0e0e4736-")
@@ -315,52 +268,42 @@ func startGreeterGRPCServerWith(t *testing.T, greeter testpb.GreeterServiceServe
 	}
 }
 
-func connectHTTPMCP(t *testing.T, cache *toolcache.Cache) *mcp.ClientSession {
-	t.Helper()
-
-	httpServer := httptest.NewServer(mcphttp.NewHandler(cache, nil))
-	t.Cleanup(httpServer.Close)
-
-	client := mcp.NewClient(&mcp.Implementation{Name: "functional-client", Version: "test"}, nil)
-	session, err := client.Connect(context.Background(), &mcp.StreamableClientTransport{
-		Endpoint:             httpServer.URL,
-		HTTPClient:           httpServer.Client(),
-		DisableStandaloneSSE: true,
-	}, nil)
-	require.NoError(t, err)
-	return session
+type mcpResponse struct {
+	StatusCode int
+	Body       string
 }
 
-func assertStatelessHTTPInitialize(t *testing.T, httpServer *httptest.Server) {
+func postMCP(t *testing.T, httpServer *httptest.Server, method string, name string, headers map[string]string, body string) mcpResponse {
 	t.Helper()
 
-	body := bytes.NewBufferString(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"functional-client","version":"test"}}}`)
-	req, err := http.NewRequest(http.MethodPost, httpServer.URL, body)
+	req, err := http.NewRequest(http.MethodPost, httpServer.URL, bytes.NewBufferString(body))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json, text/event-stream")
+	req.Header.Set("MCP-Protocol-Version", "2026-07-28")
+	req.Header.Set("Mcp-Method", method)
+	if name != "" {
+		req.Header.Set("Mcp-Name", name)
+	}
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
 
 	resp, err := httpServer.Client().Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
+	raw, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
 
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-	require.Contains(t, resp.Header.Get("Content-Type"), "application/json")
-	require.Empty(t, resp.Header.Get("Mcp-Session-Id"))
+	return mcpResponse{
+		StatusCode: resp.StatusCode,
+		Body:       string(raw),
+	}
 }
 
 type greeterServer struct {
 	testpb.UnimplementedGreeterServiceServer
 	seenAuthorization chan<- string
 	seenTraceparent   chan<- string
-}
-
-type staticProvider struct {
-	server *mcp.Server
-}
-
-func (p staticProvider) Current() *mcp.Server {
-	return p.server
 }
 
 func (g greeterServer) Greet(ctx context.Context, req *testpb.GreetRequest) (*testpb.GreetResponse, error) {
@@ -381,22 +324,6 @@ func (g greeterServer) Greet(ctx context.Context, req *testpb.GreetRequest) (*te
 		}
 	}
 	return &testpb.GreetResponse{Greeting: "Hello, " + req.GetName()}, nil
-}
-
-type headerTransport struct {
-	base http.RoundTripper
-	key  string
-	val  string
-}
-
-func (t headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	base := t.base
-	if base == nil {
-		base = http.DefaultTransport
-	}
-	req = req.Clone(req.Context())
-	req.Header.Set(t.key, t.val)
-	return base.RoundTrip(req)
 }
 
 func reflectedMethodOptions(t *testing.T, rawFiles [][]byte, filePath string, serviceName string, methodName string) *descriptorpb.MethodOptions {

@@ -9,9 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.cadenya.com/mcp-grpc-gateway/internal/discovery"
-	"go.cadenya.com/mcp-grpc-gateway/internal/gateway"
+	"go.cadenya.com/mcp-grpc-gateway/internal/toolregistry"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -22,7 +21,7 @@ import (
 
 type Loader func(context.Context, grpc.ClientConnInterface, []string) ([]protoreflect.ServiceDescriptor, error)
 
-type ServerMetadata = gateway.ServerMetadata
+type ServerMetadata = toolregistry.ServerMetadata
 
 type Options struct {
 	Conn                   grpc.ClientConnInterface
@@ -48,7 +47,7 @@ type Cache struct {
 	requireToolAnnotations bool
 	toolCallTimeout        time.Duration
 	tools                  map[string]string
-	current                atomic.Pointer[mcp.Server]
+	current                atomic.Pointer[toolregistry.Registry]
 	version                atomic.Uint64
 }
 
@@ -81,7 +80,7 @@ func New(opts Options) *Cache {
 	}
 }
 
-func (c *Cache) Current() *mcp.Server {
+func (c *Cache) Current() *toolregistry.Registry {
 	return c.current.Load()
 }
 
@@ -124,25 +123,23 @@ func (c *Cache) Reload(ctx context.Context) error {
 		c.logger.Error("reload reflected tools failed", "grpc_services", c.services, "error", err)
 		return err
 	}
-	server := gateway.NewServer(c.server)
-	registerOpts := []gateway.RegisterOption{}
-	if c.requireToolAnnotations {
-		registerOpts = append(registerOpts, gateway.WithRequireToolAnnotations(true))
-	}
-	if c.toolCallTimeout > 0 {
-		registerOpts = append(registerOpts, gateway.WithTimeout(c.toolCallTimeout))
-	}
 	registered := map[string]string{}
-	registerOpts = append(registerOpts, gateway.WithRegisteredToolNames(registered), gateway.WithLogger(c.logger))
-	for _, service := range services {
-		if err := gateway.RegisterTools(server, c.conn, service, registerOpts...); err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, err.Error())
-			c.logger.Error("register reflected tools failed", "grpc_service", string(service.FullName()), "error", err)
-			return err
-		}
+	registry, err := toolregistry.Build(toolregistry.BuildOptions{
+		Conn:                    c.conn,
+		Services:                services,
+		Server:                  c.server,
+		Logger:                  c.logger,
+		RequireToolAnnotations:  c.requireToolAnnotations,
+		RegisteredToolNameOwner: registered,
+		ToolCallTimeout:         c.toolCallTimeout,
+	})
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		c.logger.Error("register reflected tools failed", "grpc_services", serviceNames(services), "error", err)
+		return err
 	}
-	c.current.Store(server)
+	c.current.Store(registry)
 	version := c.version.Add(1)
 
 	c.mu.Lock()

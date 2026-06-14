@@ -1,16 +1,18 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
 	fakerpb "go.cadenya.com/mcp-grpc-gateway/examples/faker/fakerpb"
-	"go.cadenya.com/mcp-grpc-gateway/internal/mcphttp"
+	"go.cadenya.com/mcp-grpc-gateway/internal/mcpjson"
 	"go.cadenya.com/mcp-grpc-gateway/internal/toolcache"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -77,29 +79,35 @@ func TestFakerServiceIsExposedThroughGatewayAtFakerPath(t *testing.T) {
 	require.NoError(t, cache.Reload(ctx))
 
 	mux := http.NewServeMux()
-	mux.Handle("/mcp/faker", mcphttp.NewHandler(cache, nil))
+	mux.Handle("/mcp/faker", mcpjson.NewHandler(cache, nil))
 	httpServer := httptest.NewServer(mux)
 	defer httpServer.Close()
 
-	session := connectHTTPMCP(t, httpServer.URL+"/mcp/faker", httpServer.Client())
-	defer session.Close()
+	toolsBody := postMCP(t, httpServer.URL+"/mcp/faker", httpServer.Client(), "tools/list", "", `{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}`)
+	var toolsResp struct {
+		Result struct {
+			Tools []struct {
+				Name string `json:"name"`
+			} `json:"tools"`
+		} `json:"result"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(toolsBody), &toolsResp))
 
 	var toolNames []string
-	for tool, err := range session.Tools(ctx, nil) {
-		require.NoError(t, err)
+	for _, tool := range toolsResp.Result.Tools {
 		toolNames = append(toolNames, tool.Name)
 	}
 	require.ElementsMatch(t, []string{"GetFakerOptions", "GenerateFake"}, toolNames)
 
-	got, err := session.CallTool(ctx, &mcp.CallToolParams{
-		Name:      "GenerateFake",
-		Arguments: map[string]any{"name": "lorem.sentence", "args": map[string]any{"count": 12}},
-	})
-	require.NoError(t, err)
-	require.False(t, got.IsError)
-	content := got.StructuredContent.(map[string]any)
-	require.Equal(t, "lorem.sentence", content["name"])
-	require.NotEmpty(t, content["value"])
+	callBody := postMCP(t, httpServer.URL+"/mcp/faker", httpServer.Client(), "tools/call", "GenerateFake", `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"GenerateFake","arguments":{"name":"lorem.sentence","args":{"count":12}}}}`)
+	var callResp struct {
+		Result struct {
+			StructuredContent map[string]any `json:"structuredContent"`
+		} `json:"result"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(callBody), &callResp))
+	require.Equal(t, "lorem.sentence", callResp.Result.StructuredContent["name"])
+	require.NotEmpty(t, callResp.Result.StructuredContent["value"])
 }
 
 func startTestFakerGRPC(t *testing.T) (string, func()) {
@@ -121,17 +129,24 @@ func startTestFakerGRPC(t *testing.T) (string, func()) {
 	}
 }
 
-func connectHTTPMCP(t *testing.T, endpoint string, httpClient *http.Client) *mcp.ClientSession {
+func postMCP(t *testing.T, endpoint string, httpClient *http.Client, method string, name string, body string) string {
 	t.Helper()
 
-	client := mcp.NewClient(&mcp.Implementation{Name: "faker-test-client", Version: "test"}, nil)
-	session, err := client.Connect(context.Background(), &mcp.StreamableClientTransport{
-		Endpoint:             endpoint,
-		HTTPClient:           httpClient,
-		DisableStandaloneSSE: true,
-	}, nil)
+	req, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewBufferString(body))
 	require.NoError(t, err)
-	return session
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("MCP-Protocol-Version", "2026-07-28")
+	req.Header.Set("Mcp-Method", method)
+	if name != "" {
+		req.Header.Set("Mcp-Name", name)
+	}
+	resp, err := httpClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	raw, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode, string(raw))
+	return string(raw)
 }
 
 func optionNames(options []*fakerpb.FakerOption) []string {

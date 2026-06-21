@@ -33,14 +33,13 @@ From this directory:
 docker compose up --build
 ```
 
-## Discover Server
+## Initialize MCP
 
 ```bash
 curl -sS http://localhost:8080/mcp/faker \
   -H 'Content-Type: application/json' \
-  -H 'MCP-Protocol-Version: 2026-07-28' \
-  -H 'Mcp-Method: server/discover' \
-  -d '{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{}}'
+  -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"curl","version":"demo"}}}'
 ```
 
 ## List Tools
@@ -48,8 +47,7 @@ curl -sS http://localhost:8080/mcp/faker \
 ```bash
 curl -sS http://localhost:8080/mcp/faker \
   -H 'Content-Type: application/json' \
-  -H 'MCP-Protocol-Version: 2026-07-28' \
-  -H 'Mcp-Method: tools/list' \
+  -H 'Accept: application/json, text/event-stream' \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
 ```
 
@@ -60,9 +58,7 @@ You should see `GetFakerOptions` and `GenerateFake`.
 ```bash
 curl -sS http://localhost:8080/mcp/faker \
   -H 'Content-Type: application/json' \
-  -H 'MCP-Protocol-Version: 2026-07-28' \
-  -H 'Mcp-Method: tools/call' \
-  -H 'Mcp-Name: GetFakerOptions' \
+  -H 'Accept: application/json, text/event-stream' \
   -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"GetFakerOptions","arguments":{"filter":"email"}}}'
 ```
 
@@ -71,9 +67,7 @@ curl -sS http://localhost:8080/mcp/faker \
 ```bash
 curl -sS http://localhost:8080/mcp/faker \
   -H 'Content-Type: application/json' \
-  -H 'MCP-Protocol-Version: 2026-07-28' \
-  -H 'Mcp-Method: tools/call' \
-  -H 'Mcp-Name: GenerateFake' \
+  -H 'Accept: application/json, text/event-stream' \
   -d '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"GenerateFake","arguments":{"name":"internet.email"}}}'
 ```
 
@@ -82,9 +76,7 @@ Some generators accept arguments. `GetFakerOptions` returns argument names, type
 ```bash
 curl -sS http://localhost:8080/mcp/faker \
   -H 'Content-Type: application/json' \
-  -H 'MCP-Protocol-Version: 2026-07-28' \
-  -H 'Mcp-Method: tools/call' \
-  -H 'Mcp-Name: GenerateFake' \
+  -H 'Accept: application/json, text/event-stream' \
   -d '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"GenerateFake","arguments":{"name":"lorem.sentence","args":{"count":12}}}}'
 ```
 

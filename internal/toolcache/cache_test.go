@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
 	"go.cadenya.com/mcp-grpc-gateway/internal/discovery"
 	"go.cadenya.com/mcp-grpc-gateway/internal/testpb"
@@ -20,7 +21,7 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
-func TestCacheReloadKeepsLastKnownGoodRegistryOnReflectionFailure(t *testing.T) {
+func TestCacheReloadKeepsLastKnownGoodServerOnReflectionFailure(t *testing.T) {
 	ctx := context.Background()
 	addr, stop := startGRPCServer(t)
 	defer stop()
@@ -47,7 +48,7 @@ func TestCacheReloadKeepsLastKnownGoodRegistryOnReflectionFailure(t *testing.T) 
 	require.Equal(t, uint64(1), cache.Version())
 }
 
-func TestCacheReloadSwapsRegistryAfterSuccessfulReflectionReload(t *testing.T) {
+func TestCacheReloadSwapsServerAfterSuccessfulReflectionReload(t *testing.T) {
 	ctx := context.Background()
 	addr, stop := startGRPCServer(t)
 	defer stop()
@@ -74,14 +75,20 @@ func TestCacheReloadSwapsRegistryAfterSuccessfulReflectionReload(t *testing.T) {
 	require.NotSame(t, initial, cache.Current())
 	require.Equal(t, uint64(2), cache.Version())
 
-	meta := cache.Current().Server()
-	require.Equal(t, "runtime-gateway", meta.Name)
-	require.Equal(t, "Runtime Gateway", meta.Title)
-	require.Equal(t, "1.2.3", meta.Version)
-	require.Equal(t, "https://example.com/runtime", meta.WebsiteURL)
-	require.Equal(t, "Runtime instructions.", meta.Instructions)
+	session := connectMCP(t, cache.Current())
+	defer session.Close()
+	init := session.InitializeResult()
+	require.Equal(t, "runtime-gateway", init.ServerInfo.Name)
+	require.Equal(t, "Runtime Gateway", init.ServerInfo.Title)
+	require.Equal(t, "1.2.3", init.ServerInfo.Version)
+	require.Equal(t, "https://example.com/runtime", init.ServerInfo.WebsiteURL)
+	require.Equal(t, "Runtime instructions.", init.Instructions)
 
-	tools := cache.Current().Tools()
+	var tools []*mcp.Tool
+	for tool, err := range session.Tools(ctx, nil) {
+		require.NoError(t, err)
+		tools = append(tools, tool)
+	}
 	require.Len(t, tools, 1)
 	require.Equal(t, "greet_user", tools[0].Name)
 }
@@ -136,7 +143,13 @@ func TestCacheReloadLoadsAllServicesWhenNoFilterIsProvided(t *testing.T) {
 	})
 	require.NoError(t, cache.Reload(ctx))
 
-	tools := cache.Current().Tools()
+	session := connectMCP(t, cache.Current())
+	defer session.Close()
+	var tools []*mcp.Tool
+	for tool, err := range session.Tools(ctx, nil) {
+		require.NoError(t, err)
+		tools = append(tools, tool)
+	}
 	require.Len(t, tools, 1)
 	require.Equal(t, "greet_user", tools[0].Name)
 }
@@ -195,7 +208,7 @@ func (h *captureHandler) Handle(_ context.Context, record slog.Record) error {
 }
 
 func (h *captureHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
-func (h *captureHandler) WithGroup(string) slog.Handler      { return h }
+func (h *captureHandler) WithGroup(string) slog.Handler       { return h }
 
 func (h *captureHandler) lastReload(t *testing.T) map[string]any {
 	t.Helper()
@@ -222,6 +235,20 @@ func startGRPCServer(t *testing.T) (string, func()) {
 		server.Stop()
 		_ = listener.Close()
 	}
+}
+
+func connectMCP(t *testing.T, server *mcp.Server) *mcp.ClientSession {
+	t.Helper()
+
+	ctx := context.Background()
+	t1, t2 := mcp.NewInMemoryTransports()
+	_, err := server.Connect(ctx, t1, nil)
+	require.NoError(t, err)
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "test"}, nil)
+	session, err := client.Connect(ctx, t2, nil)
+	require.NoError(t, err)
+	return session
 }
 
 type greeterServer struct {

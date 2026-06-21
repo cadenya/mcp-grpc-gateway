@@ -98,36 +98,9 @@ Buf label: buf.build/cadenya-agents/mcp-grpc-gateway:v0.1.0
 
 ## MCP Transport
 
-This gateway only supports stateless MCP over HTTP using the `2026-07-28` release-candidate request shape. Each request is handled independently, and the gateway does not issue or require `Mcp-Session-Id` headers.
+This gateway only supports stateless MCP over HTTP. It mounts the MCP Go SDK's Streamable HTTP transport with stateless JSON responses, so each request is handled independently and the gateway does not issue or require `Mcp-Session-Id` headers.
 
 The endpoint is intended for HTTP `POST` requests with JSON responses. **It does not expose stdio, stateful SSE sessions, resumable streams, or event-store backed session recovery.**
-
-Every MCP request must include:
-
-```http
-Content-Type: application/json
-MCP-Protocol-Version: 2026-07-28
-Mcp-Method: tools/list
-```
-
-Named calls such as `tools/call` must also include `Mcp-Name` matching the JSON-RPC body:
-
-```http
-Mcp-Name: greet_user
-```
-
-`Accept: text/event-stream` is not required.
-
-Example tool call:
-
-```bash
-curl -sS http://127.0.0.1:8080/mcp \
-  -H 'Content-Type: application/json' \
-  -H 'MCP-Protocol-Version: 2026-07-28' \
-  -H 'Mcp-Method: tools/call' \
-  -H 'Mcp-Name: greet_user' \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"greet_user","arguments":{"name":"Ada"}}}'
-```
 
 ## Forwarding Headers
 

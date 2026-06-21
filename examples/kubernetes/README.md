@@ -36,14 +36,13 @@ kubectl port-forward svc/mcp-grpc-gateway 8080:8080
 
 The MCP HTTP endpoint is then available at `http://localhost:8080/mcp`.
 
-## Discover Server
+## Initialize MCP
 
 ```bash
 curl -sS http://localhost:8080/mcp \
   -H 'Content-Type: application/json' \
-  -H 'MCP-Protocol-Version: 2026-07-28' \
-  -H 'Mcp-Method: server/discover' \
-  -d '{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{}}'
+  -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"curl","version":"demo"}}}'
 ```
 
 ## List Tools
@@ -51,8 +50,7 @@ curl -sS http://localhost:8080/mcp \
 ```bash
 curl -sS http://localhost:8080/mcp \
   -H 'Content-Type: application/json' \
-  -H 'MCP-Protocol-Version: 2026-07-28' \
-  -H 'Mcp-Method: tools/list' \
+  -H 'Accept: application/json, text/event-stream' \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
 ```
 
@@ -63,9 +61,7 @@ You should see a `greet_user` tool.
 ```bash
 curl -sS http://localhost:8080/mcp \
   -H 'Content-Type: application/json' \
-  -H 'MCP-Protocol-Version: 2026-07-28' \
-  -H 'Mcp-Method: tools/call' \
-  -H 'Mcp-Name: greet_user' \
+  -H 'Accept: application/json, text/event-stream' \
   -H 'Authorization: Bearer demo-token' \
   -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"greet_user","arguments":{"name":"Ada"}}}'
 ```

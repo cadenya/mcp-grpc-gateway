@@ -17,7 +17,7 @@ import (
 
 	"github.com/urfave/cli/v3"
 	"go.cadenya.com/mcp-grpc-gateway/internal/discovery"
-	"go.cadenya.com/mcp-grpc-gateway/internal/mcpjson"
+	"go.cadenya.com/mcp-grpc-gateway/internal/mcphttp"
 	"go.cadenya.com/mcp-grpc-gateway/internal/telemetry"
 	"go.cadenya.com/mcp-grpc-gateway/internal/toolcache"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -179,12 +179,12 @@ func newCommand(action func(context.Context, config) error) *cli.Command {
 			},
 			&cli.StringFlag{
 				Name:    "mcp-instructions",
-				Usage:   "MCP server instructions returned by server/discover",
+				Usage:   "MCP server instructions returned during initialize",
 				Sources: cli.EnvVars("MCP_INSTRUCTIONS"),
 			},
 			&cli.StringFlag{
 				Name:    "mcp-website-url",
-				Usage:   "MCP server website URL returned by server/discover",
+				Usage:   "MCP server website URL returned during initialize",
 				Sources: cli.EnvVars("MCP_WEBSITE_URL"),
 			},
 		},
@@ -310,7 +310,7 @@ func run(ctx context.Context, cfg config) error {
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle(cfg.path, mcpjson.NewHandler(cache, logger, mcpjson.WithForwardHeaders(cfg.forwardHeaders)))
+	mux.Handle(cfg.path, mcphttp.NewHandler(cache, logger, mcphttp.WithForwardHeaders(cfg.forwardHeaders)))
 	registerHealthHandler(mux, cfg.healthPath)
 
 	listener, err := net.Listen("tcp", cfg.addr)

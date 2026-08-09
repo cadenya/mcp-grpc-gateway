@@ -33,13 +33,15 @@ From this directory:
 docker compose up --build
 ```
 
-## Initialize MCP
+## Discover The MCP Server
 
 ```bash
 curl -sS http://localhost:8080/mcp/faker \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json, text/event-stream' \
-  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"curl","version":"demo"}}}'
+  -H 'Mcp-Protocol-Version: 2026-07-28' \
+  -H 'Mcp-Method: server/discover' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"curl","version":"demo"},"io.modelcontextprotocol/clientCapabilities":{}}}}'
 ```
 
 ## List Tools
@@ -48,7 +50,9 @@ curl -sS http://localhost:8080/mcp/faker \
 curl -sS http://localhost:8080/mcp/faker \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json, text/event-stream' \
-  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
+  -H 'Mcp-Protocol-Version: 2026-07-28' \
+  -H 'Mcp-Method: tools/list' \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"curl","version":"demo"},"io.modelcontextprotocol/clientCapabilities":{}}}}'
 ```
 
 You should see `GetFakerOptions` and `GenerateFake`.

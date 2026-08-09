@@ -39,7 +39,6 @@ func NewServer(meta ServerMetadata) *mcp.Server {
 		WebsiteURL: meta.WebsiteURL,
 	}, &mcp.ServerOptions{
 		Instructions: meta.Instructions,
-		GetSessionID: func() string { return "" },
 	})
 }
 

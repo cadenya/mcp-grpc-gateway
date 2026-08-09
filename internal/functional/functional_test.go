@@ -53,18 +53,18 @@ func TestAnnotatedGRPCServiceIsExposedThroughMCPEndpoint(t *testing.T) {
 
 	httpServer := httptest.NewServer(mcphttp.NewHandler(staticProvider{server: mcpServer}, nil))
 	defer httpServer.Close()
-	assertStatelessHTTPInitialize(t, httpServer)
+	assertLegacyHTTPInitializeIsSessionless(t, httpServer)
 
 	mcpClient := mcp.NewClient(&mcp.Implementation{Name: "functional-client", Version: "test"}, nil)
 	session, err := mcpClient.Connect(ctx, &mcp.StreamableClientTransport{
-		Endpoint:             httpServer.URL,
-		HTTPClient:           httpServer.Client(),
-		DisableStandaloneSSE: true,
+		Endpoint:   httpServer.URL,
+		HTTPClient: httpServer.Client(),
 	}, nil)
 	require.NoError(t, err)
 	defer session.Close()
 
 	init := session.InitializeResult()
+	require.Equal(t, "2026-07-28", init.ProtocolVersion)
 	require.Equal(t, "runtime-gateway", init.ServerInfo.Name)
 	require.Equal(t, "Runtime Gateway", init.ServerInfo.Title)
 	require.Equal(t, "2.0.0", init.ServerInfo.Version)
@@ -146,9 +146,8 @@ func TestMCPEndpointKeepsCachedToolsWhenReflectionReloadFails(t *testing.T) {
 
 	mcpClient := mcp.NewClient(&mcp.Implementation{Name: "functional-client", Version: "test"}, nil)
 	session, err := mcpClient.Connect(ctx, &mcp.StreamableClientTransport{
-		Endpoint:             httpServer.URL,
-		HTTPClient:           httpServer.Client(),
-		DisableStandaloneSSE: true,
+		Endpoint:   httpServer.URL,
+		HTTPClient: httpServer.Client(),
 	}, nil)
 	require.NoError(t, err)
 	defer session.Close()
@@ -217,7 +216,6 @@ func TestForwardHeaderReachesGRPCMetadata(t *testing.T) {
 			key:  "Authorization",
 			val:  "Bearer test-token",
 		}},
-		DisableStandaloneSSE: true,
 	}, nil)
 	require.NoError(t, err)
 	defer session.Close()
@@ -273,7 +271,6 @@ func TestTraceContextPropagatesFromMCPHTTPToGRPCMetadata(t *testing.T) {
 			key:  "traceparent",
 			val:  "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
 		}},
-		DisableStandaloneSSE: true,
 	}, nil)
 	require.NoError(t, err)
 	defer session.Close()
@@ -323,15 +320,14 @@ func connectHTTPMCP(t *testing.T, cache *toolcache.Cache) *mcp.ClientSession {
 
 	client := mcp.NewClient(&mcp.Implementation{Name: "functional-client", Version: "test"}, nil)
 	session, err := client.Connect(context.Background(), &mcp.StreamableClientTransport{
-		Endpoint:             httpServer.URL,
-		HTTPClient:           httpServer.Client(),
-		DisableStandaloneSSE: true,
+		Endpoint:   httpServer.URL,
+		HTTPClient: httpServer.Client(),
 	}, nil)
 	require.NoError(t, err)
 	return session
 }
 
-func assertStatelessHTTPInitialize(t *testing.T, httpServer *httptest.Server) {
+func assertLegacyHTTPInitializeIsSessionless(t *testing.T, httpServer *httptest.Server) {
 	t.Helper()
 
 	body := bytes.NewBufferString(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"functional-client","version":"test"}}}`)

@@ -63,7 +63,10 @@ You should see `GetFakerOptions` and `GenerateFake`.
 curl -sS http://localhost:8080/mcp/faker \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json, text/event-stream' \
-  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"GetFakerOptions","arguments":{"filter":"email"}}}'
+  -H 'Mcp-Protocol-Version: 2026-07-28' \
+  -H 'Mcp-Method: tools/call' \
+  -H 'Mcp-Name: GetFakerOptions' \
+  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"curl","version":"demo"},"io.modelcontextprotocol/clientCapabilities":{}},"name":"GetFakerOptions","arguments":{"filter":"email"}}}'
 ```
 
 ## Generate Fake Data
@@ -72,7 +75,10 @@ curl -sS http://localhost:8080/mcp/faker \
 curl -sS http://localhost:8080/mcp/faker \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json, text/event-stream' \
-  -d '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"GenerateFake","arguments":{"name":"internet.email"}}}'
+  -H 'Mcp-Protocol-Version: 2026-07-28' \
+  -H 'Mcp-Method: tools/call' \
+  -H 'Mcp-Name: GenerateFake' \
+  -d '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"curl","version":"demo"},"io.modelcontextprotocol/clientCapabilities":{}},"name":"GenerateFake","arguments":{"name":"internet.email"}}}'
 ```
 
 Some generators accept arguments. `GetFakerOptions` returns argument names, types, descriptions, and defaults.
@@ -81,7 +87,10 @@ Some generators accept arguments. `GetFakerOptions` returns argument names, type
 curl -sS http://localhost:8080/mcp/faker \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json, text/event-stream' \
-  -d '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"GenerateFake","arguments":{"name":"lorem.sentence","args":{"count":12}}}}'
+  -H 'Mcp-Protocol-Version: 2026-07-28' \
+  -H 'Mcp-Method: tools/call' \
+  -H 'Mcp-Name: GenerateFake' \
+  -d '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"curl","version":"demo"},"io.modelcontextprotocol/clientCapabilities":{}},"name":"GenerateFake","arguments":{"name":"lorem.sentence","args":{"count":12}}}}'
 ```
 
 ## Stop

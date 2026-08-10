@@ -50,6 +50,7 @@ curl -sS http://localhost:8080/mcp \
   -H 'Accept: application/json, text/event-stream' \
   -H 'Mcp-Protocol-Version: 2026-07-28' \
   -H 'Mcp-Method: tools/call' \
+  -H 'Mcp-Name: greet_user' \
   -H 'Authorization: Bearer demo-token' \
   -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"curl","version":"demo"},"io.modelcontextprotocol/clientCapabilities":{}},"name":"greet_user","arguments":{"name":"Ada"}}}'
 ```

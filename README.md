@@ -72,7 +72,7 @@ go install ./cmd/mcp-grpc-gateway
 Run the published Docker image:
 
 ```bash
-docker run --rm -p 8080:8080 cadenyaagents/mcp-grpc-gateway:latest \
+docker run --rm -p 8080:8080 ghcr.io/cadenya/mcp-grpc-gateway:latest \
   --addr 0.0.0.0:8080 \
   --grpc-host your-grpc-service:50051
 ```
@@ -92,7 +92,7 @@ For `v0.1.0`, the release workflow publishes:
 
 ```text
 GitHub release: v0.1.0
-Docker tags: cadenyaagents/mcp-grpc-gateway:0.1.0, :0.1, :0, :latest, :sha-<commit>
+Docker tags: ghcr.io/cadenya/mcp-grpc-gateway:0.1.0, :0.1, :0, :latest, :sha-<commit>
 Buf label: buf.build/cadenya-agents/mcp-grpc-gateway:v0.1.0
 ```
 

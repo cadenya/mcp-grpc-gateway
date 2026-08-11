@@ -7,7 +7,7 @@ services:
       - "50051"
 
   gateway:
-    image: cadenyaagents/mcp-grpc-gateway:latest
+    image: ghcr.io/cadenya/mcp-grpc-gateway:latest
     depends_on:
       - greeter
     command:

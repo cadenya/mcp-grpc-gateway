@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
         - name: gateway
-          image: cadenyaagents/mcp-grpc-gateway:latest
+          image: ghcr.io/cadenya/mcp-grpc-gateway:latest
           imagePullPolicy: IfNotPresent
           args:
             - --addr

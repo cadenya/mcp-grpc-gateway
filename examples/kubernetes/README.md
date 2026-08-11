@@ -9,7 +9,7 @@ The greeter uses the annotated `functional.v1.GreeterService` proto from this re
 For Docker Desktop Kubernetes, build both images into the local Docker image store:
 
 ```bash
-docker build -t cadenyaagents/mcp-grpc-gateway:latest ../..
+docker build -t ghcr.io/cadenya/mcp-grpc-gateway:latest ../..
 docker build -t mcp-grpc-gateway-greeter:latest -f ../docker-compose/greeter/Dockerfile ../..
 ```
 

@@ -326,6 +326,10 @@ func (s *GatewaySuite) TestNewServerUsesRuntimeImplementationFields() {
 	s.Equal("1.2.3", init.ServerInfo.Version)
 	s.Equal("https://example.com/runtime", init.ServerInfo.WebsiteURL)
 	s.Equal("Use the runtime-configured MCP server.", init.Instructions)
+	s.Require().NotNil(init.Capabilities)
+	s.Require().NotNil(init.Capabilities.Tools)
+	s.False(init.Capabilities.Tools.ListChanged)
+	s.Nil(init.Capabilities.Logging)
 }
 
 func (s *GatewaySuite) connect(server *mcp.Server) *mcp.ClientSession {

@@ -179,12 +179,12 @@ func newCommand(action func(context.Context, config) error) *cli.Command {
 			},
 			&cli.StringFlag{
 				Name:    "mcp-instructions",
-				Usage:   "MCP server instructions returned during initialize",
+				Usage:   "instructions advertised by the MCP server",
 				Sources: cli.EnvVars("MCP_INSTRUCTIONS"),
 			},
 			&cli.StringFlag{
 				Name:    "mcp-website-url",
-				Usage:   "MCP server website URL returned during initialize",
+				Usage:   "website URL advertised by the MCP server",
 				Sources: cli.EnvVars("MCP_WEBSITE_URL"),
 			},
 		},

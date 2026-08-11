@@ -7,20 +7,19 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"go.cadenya.com/mcp-grpc-gateway/internal/mcphttp"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
+	"go.cadenya.com/mcp-grpc-gateway/internal/mcphttp"
 )
 
 func TestHandlerUsesStatelessJSONHTTP(t *testing.T) {
-	server := mcp.NewServer(&mcp.Implementation{Name: "test", Version: "test"}, &mcp.ServerOptions{
-		GetSessionID: func() string { return "" },
-	})
+	server := mcp.NewServer(&mcp.Implementation{Name: "test", Version: "test"}, nil)
 	handler := mcphttp.NewHandler(provider{server: server}, slog.New(slog.NewTextHandler(bytes.NewBuffer(nil), nil)))
 
 	req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewBufferString(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"test"}}}`))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json, text/event-stream")
+	req.Header.Set("Mcp-Session-Id", "ignored")
 	resp := httptest.NewRecorder()
 
 	handler.ServeHTTP(resp, req)
@@ -30,18 +29,23 @@ func TestHandlerUsesStatelessJSONHTTP(t *testing.T) {
 	require.Empty(t, resp.Header().Get("Mcp-Session-Id"))
 }
 
-func TestHandlerRejectsGETBecauseStatelessHTTPOnlyDoesNotOfferSSE(t *testing.T) {
+func TestHandlerRejectsSessionOrientedHTTPMethods(t *testing.T) {
 	server := mcp.NewServer(&mcp.Implementation{Name: "test", Version: "test"}, nil)
 	handler := mcphttp.NewHandler(provider{server: server}, slog.New(slog.NewTextHandler(bytes.NewBuffer(nil), nil)))
 
-	req := httptest.NewRequest(http.MethodGet, "/mcp", nil)
-	req.Header.Set("Accept", "text/event-stream")
-	resp := httptest.NewRecorder()
+	for _, method := range []string{http.MethodGet, http.MethodDelete} {
+		t.Run(method, func(t *testing.T) {
+			req := httptest.NewRequest(method, "/mcp", nil)
+			req.Header.Set("Accept", "text/event-stream")
+			req.Header.Set("Mcp-Session-Id", "ignored")
+			resp := httptest.NewRecorder()
 
-	handler.ServeHTTP(resp, req)
+			handler.ServeHTTP(resp, req)
 
-	require.Equal(t, http.StatusMethodNotAllowed, resp.Code)
-	require.Equal(t, "POST", resp.Header().Get("Allow"))
+			require.Equal(t, http.StatusMethodNotAllowed, resp.Code)
+			require.Equal(t, "POST", resp.Header().Get("Allow"))
+		})
+	}
 }
 
 type provider struct {

@@ -33,13 +33,15 @@ From this directory:
 docker compose up --build
 ```
 
-## Initialize MCP
+## Discover The MCP Server
 
 ```bash
 curl -sS http://localhost:8080/mcp/faker \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json, text/event-stream' \
-  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"curl","version":"demo"}}}'
+  -H 'Mcp-Protocol-Version: 2026-07-28' \
+  -H 'Mcp-Method: server/discover' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"curl","version":"demo"},"io.modelcontextprotocol/clientCapabilities":{}}}}'
 ```
 
 ## List Tools
@@ -48,7 +50,9 @@ curl -sS http://localhost:8080/mcp/faker \
 curl -sS http://localhost:8080/mcp/faker \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json, text/event-stream' \
-  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
+  -H 'Mcp-Protocol-Version: 2026-07-28' \
+  -H 'Mcp-Method: tools/list' \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"curl","version":"demo"},"io.modelcontextprotocol/clientCapabilities":{}}}}'
 ```
 
 You should see `GetFakerOptions` and `GenerateFake`.
@@ -59,7 +63,10 @@ You should see `GetFakerOptions` and `GenerateFake`.
 curl -sS http://localhost:8080/mcp/faker \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json, text/event-stream' \
-  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"GetFakerOptions","arguments":{"filter":"email"}}}'
+  -H 'Mcp-Protocol-Version: 2026-07-28' \
+  -H 'Mcp-Method: tools/call' \
+  -H 'Mcp-Name: GetFakerOptions' \
+  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"curl","version":"demo"},"io.modelcontextprotocol/clientCapabilities":{}},"name":"GetFakerOptions","arguments":{"filter":"email"}}}'
 ```
 
 ## Generate Fake Data
@@ -68,7 +75,10 @@ curl -sS http://localhost:8080/mcp/faker \
 curl -sS http://localhost:8080/mcp/faker \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json, text/event-stream' \
-  -d '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"GenerateFake","arguments":{"name":"internet.email"}}}'
+  -H 'Mcp-Protocol-Version: 2026-07-28' \
+  -H 'Mcp-Method: tools/call' \
+  -H 'Mcp-Name: GenerateFake' \
+  -d '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"curl","version":"demo"},"io.modelcontextprotocol/clientCapabilities":{}},"name":"GenerateFake","arguments":{"name":"internet.email"}}}'
 ```
 
 Some generators accept arguments. `GetFakerOptions` returns argument names, types, descriptions, and defaults.
@@ -77,7 +87,10 @@ Some generators accept arguments. `GetFakerOptions` returns argument names, type
 curl -sS http://localhost:8080/mcp/faker \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json, text/event-stream' \
-  -d '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"GenerateFake","arguments":{"name":"lorem.sentence","args":{"count":12}}}}'
+  -H 'Mcp-Protocol-Version: 2026-07-28' \
+  -H 'Mcp-Method: tools/call' \
+  -H 'Mcp-Name: GenerateFake' \
+  -d '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"curl","version":"demo"},"io.modelcontextprotocol/clientCapabilities":{}},"name":"GenerateFake","arguments":{"name":"lorem.sentence","args":{"count":12}}}}'
 ```
 
 ## Stop

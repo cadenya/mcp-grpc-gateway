@@ -126,9 +126,8 @@ func connectHTTPMCP(t *testing.T, endpoint string, httpClient *http.Client) *mcp
 
 	client := mcp.NewClient(&mcp.Implementation{Name: "faker-test-client", Version: "test"}, nil)
 	session, err := client.Connect(context.Background(), &mcp.StreamableClientTransport{
-		Endpoint:             endpoint,
-		HTTPClient:           httpClient,
-		DisableStandaloneSSE: true,
+		Endpoint:   endpoint,
+		HTTPClient: httpClient,
 	}, nil)
 	require.NoError(t, err)
 	return session

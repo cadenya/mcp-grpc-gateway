@@ -98,7 +98,7 @@ Buf label: buf.build/cadenya-agents/mcp-grpc-gateway:v0.1.0
 
 ## MCP Transport
 
-This gateway only supports stateless MCP over HTTP. It mounts the MCP Go SDK's Streamable HTTP transport with stateless JSON responses, so each request is handled independently and the gateway does not issue or require `Mcp-Session-Id` headers.
+This gateway only supports stateless MCP over HTTP. It mounts the MCP Go SDK's Streamable HTTP transport with stateless JSON responses and supports the sessionless lifecycle introduced in MCP `2026-07-28`, so each request is handled independently and the gateway does not issue or require `Mcp-Session-Id` headers. Older MCP clients remain supported through the SDK's legacy initialization fallback.
 
 The endpoint is intended for HTTP `POST` requests with JSON responses. **It does not expose stdio, stateful SSE sessions, resumable streams, or event-store backed session recovery.**
 
@@ -349,7 +349,7 @@ The flag can also be set with the `PROTO_DESCRIPTOR` environment variable.
 
 ## Tool Snapshot Reloads
 
-The gateway keeps a reflected snapshot of your gRPC services and periodically reloads it. When a reload succeeds, new MCP sessions use the new tool set. When reflection fails during a rolling deploy, the gateway keeps serving the last known-good snapshot.
+The gateway keeps a reflected snapshot of your gRPC services and periodically reloads it. When a reload succeeds, subsequent MCP requests use the new tool set. When reflection fails during a rolling deploy, the gateway keeps serving the last known-good snapshot.
 
 By default snapshots reload every minute:
 

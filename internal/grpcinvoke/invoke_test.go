@@ -17,9 +17,10 @@ import (
 
 type InvokeSuite struct {
 	suite.Suite
-	method protoreflect.MethodDescriptor
-	client *grpc.ClientConn
-	server *grpc.Server
+	method  protoreflect.MethodDescriptor
+	client  *grpc.ClientConn
+	server  *grpc.Server
+	gotTags []string
 }
 
 func TestInvokeSuite(t *testing.T) {
@@ -28,10 +29,12 @@ func TestInvokeSuite(t *testing.T) {
 
 func (s *InvokeSuite) SetupTest() {
 	optional := descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL
+	repeated := descriptorpb.FieldDescriptorProto_LABEL_REPEATED
 	typeString := descriptorpb.FieldDescriptorProto_TYPE_STRING
 	typeInt32 := descriptorpb.FieldDescriptorProto_TYPE_INT32
 	typeBool := descriptorpb.FieldDescriptorProto_TYPE_BOOL
 
+	s.gotTags = nil
 	fd, err := protodesc.NewFile(&descriptorpb.FileDescriptorProto{
 		Name:    ptr("test/v1/echo.proto"),
 		Package: ptr("test.v1"),
@@ -40,6 +43,7 @@ func (s *InvokeSuite) SetupTest() {
 			{Name: ptr("EchoRequest"), Field: []*descriptorpb.FieldDescriptorProto{
 				{Name: ptr("id"), JsonName: ptr("id"), Number: ptr[int32](1), Label: &optional, Type: &typeString},
 				{Name: ptr("count"), JsonName: ptr("count"), Number: ptr[int32](2), Label: &optional, Type: &typeInt32},
+				{Name: ptr("tags"), JsonName: ptr("tags"), Number: ptr[int32](3), Label: &repeated, Type: &typeString},
 			}},
 			{Name: ptr("EchoResponse"), Field: []*descriptorpb.FieldDescriptorProto{
 				{Name: ptr("ok"), JsonName: ptr("ok"), Number: ptr[int32](1), Label: &optional, Type: &typeBool},
@@ -70,6 +74,10 @@ func (s *InvokeSuite) SetupTest() {
 				if err := dec(req); err != nil {
 					return nil, err
 				}
+				tags := req.Get(s.method.Input().Fields().ByName("tags")).List()
+				for i := 0; i < tags.Len(); i++ {
+					s.gotTags = append(s.gotTags, tags.Get(i).String())
+				}
 				resp := dynamicpb.NewMessage(s.method.Output())
 				resp.Set(s.method.Output().Fields().ByName("ok"), protoreflect.ValueOfBool(true))
 				resp.Set(s.method.Output().Fields().ByName("id"), req.Get(s.method.Input().Fields().ByName("id")))
@@ -98,6 +106,25 @@ func (s *InvokeSuite) TestInvokesUnaryMethodWithJSONArguments() {
 
 	s.Require().NoError(err)
 	s.Equal(map[string]any{"ok": true, "id": "abc"}, got)
+}
+
+func (s *InvokeSuite) TestCoercesStringifiedArrayArguments() {
+	// Models sometimes JSON-encode a nested array as a string; the strict
+	// parse fails and the repaired payload must land the real values.
+	got, err := grpcinvoke.InvokeUnary(context.Background(), s.client, s.method,
+		[]byte(`{"id":"abc","tags":"[\"a\",\"b\"]"}`))
+
+	s.Require().NoError(err)
+	s.Equal(map[string]any{"ok": true, "id": "abc"}, got)
+	s.Equal([]string{"a", "b"}, s.gotTags)
+}
+
+func (s *InvokeSuite) TestRejectsStringThatIsNotAnArray() {
+	_, err := grpcinvoke.InvokeUnary(context.Background(), s.client, s.method,
+		[]byte(`{"tags":"not an array"}`))
+
+	s.Require().Error(err)
+	s.Contains(err.Error(), "unmarshal arguments")
 }
 
 func (s *InvokeSuite) TestRejectsInvalidJSONArguments() {
